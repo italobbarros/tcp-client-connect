@@ -29,8 +29,8 @@ func NewClient(serverAddr string) *Client {
 	return &Client{
 		serverAddr:        serverAddr,
 		stopCh:            make(chan os.Signal, 1),
-		ServerCommandCh:   make(chan string, 2),
-		UserCommandCh:     make(chan string, 2),
+		ServerCommandCh:   make(chan string),
+		UserCommandCh:     make(chan string),
 		doneCh:            make(chan struct{}),
 		reconnectAttempts: 0,
 	}
@@ -113,7 +113,8 @@ func (c *Client) Start() {
 	<-c.stopCh
 	close(c.ServerCommandCh)
 	close(c.UserCommandCh)
+}
 
-	// Wait for the completion of the main goroutine
-	<-c.doneCh
+func (c *Client) Stop() {
+	close(c.doneCh)
 }
