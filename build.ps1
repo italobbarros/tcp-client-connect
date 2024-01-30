@@ -14,5 +14,6 @@ go build -o .\build\tcpclient.exe
 
 $scriptDir = Get-Location
 $env:tcpclient = "$scriptDir\build\tcpclient"
+$env:Path += ";$scriptDir\build"
 Write-Host "Binários foram construídos e estão localizados em .\build."
 Write-Host "variavel de ambiente: $env:tcpclient"
