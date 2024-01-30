@@ -34,14 +34,14 @@ func main() {
 	userCommandCh := make(chan string)
 
 	// Canal para sinalizar a goroutine principal para encerrar
-	doneCh := make(chan struct{})
+	DoneCh := make(chan struct{})
 
 	// Contador de tentativas de reconexão
 	reconnectAttempts := 0
 
 	// Iniciando as requisições concorrentes
 	go func() {
-		defer close(doneCh)
+		defer close(DoneCh)
 
 		var conn net.Conn
 		var err error
@@ -74,7 +74,7 @@ func main() {
 		go func() {
 			for {
 				select {
-				case <-doneCh:
+				case <-DoneCh:
 					return
 				default:
 					buffer := make([]byte, 4096)
@@ -94,7 +94,7 @@ func main() {
 		// Receber input do usuário e enviar comandos ao servidor
 		for {
 			select {
-			case <-doneCh:
+			case <-DoneCh:
 				return
 			default:
 				// Receber input do usuário
@@ -117,5 +117,5 @@ func main() {
 	close(userCommandCh)
 
 	// Esperar pela conclusão da goroutine principal
-	<-doneCh
+	<-DoneCh
 }

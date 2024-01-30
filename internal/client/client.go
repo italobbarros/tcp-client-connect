@@ -3,9 +3,6 @@ package client
 import (
 	"fmt"
 	"net"
-	"os"
-	"os/signal"
-	"syscall"
 	"time"
 )
 
@@ -17,10 +14,9 @@ const (
 // Client represents a TCP client
 type Client struct {
 	serverAddr        string
-	stopCh            chan os.Signal
 	ServerCommandCh   chan string
 	UserCommandCh     chan string
-	doneCh            chan struct{}
+	DoneCh            chan struct{}
 	reconnectAttempts int
 }
 
@@ -28,10 +24,9 @@ type Client struct {
 func NewClient(serverAddr string) *Client {
 	return &Client{
 		serverAddr:        serverAddr,
-		stopCh:            make(chan os.Signal, 1),
 		ServerCommandCh:   make(chan string),
 		UserCommandCh:     make(chan string),
-		doneCh:            make(chan struct{}),
+		DoneCh:            make(chan struct{}),
 		reconnectAttempts: 0,
 	}
 }
@@ -69,7 +64,7 @@ func (c *Client) Connect() {
 	go func() {
 		for {
 			select {
-			case <-c.doneCh:
+			case <-c.DoneCh:
 				return
 			default:
 				buffer := make([]byte, 4096)
@@ -87,17 +82,9 @@ func (c *Client) Connect() {
 	// Receive user input and send commands to the server
 	for {
 		select {
-		case <-c.doneCh:
+		case <-c.DoneCh:
 			return
 		default:
-			// Receive user input
-			//scanner := bufio.NewScanner(os.Stdin)
-			//fmt.Print("Enter a command: ")
-			//if !scanner.Scan() {
-			//	return
-			//}
-			//userInput := scanner.Text()
-			// Send user command to the server
 			userInput := <-c.UserCommandCh
 			conn.Write([]byte(userInput))
 		}
@@ -106,15 +93,9 @@ func (c *Client) Connect() {
 
 // Start initiates the client
 func (c *Client) Start() {
-	signal.Notify(c.stopCh, syscall.SIGINT, syscall.SIGTERM)
-	go c.Connect()
-
-	// Wait for signals to stop the program
-	<-c.stopCh
-	close(c.ServerCommandCh)
-	close(c.UserCommandCh)
+	c.Connect()
 }
 
 func (c *Client) Stop() {
-	close(c.doneCh)
+	close(c.DoneCh)
 }

@@ -32,7 +32,7 @@ func main() {
 
 		os.Exit(0)
 	}()
-	go gui.Create()
-	go gui.ListenServerResponse()
+	go gui.Create(myClient.DoneCh)
+	go gui.ListenServerResponse(myClient.DoneCh)
 	myClient.Start()
 }
