@@ -50,8 +50,8 @@ func (c *Client) Connect() {
 			c.PrintStatus(c.serverAddr+" -> Conectando...", terminal.Blue)
 			c.conn, err = net.Dial("tcp", c.serverAddr)
 
-			msg := fmt.Sprintf("Error connecting (attempt %d): %v. Retrying in %v...\n",
-				c.reconnectAttempts+1, err, reconnectInterval)
+			msg := fmt.Sprintf(c.serverAddr+" -> Error connecting (attempt %d): Retrying in %v...",
+				c.reconnectAttempts, reconnectInterval)
 			c.PrintStatus(msg, terminal.Red)
 			c.reconnectAttempts++
 			if err != nil {
@@ -61,11 +61,10 @@ func (c *Client) Connect() {
 			// Reset the retry counter after a successful connection
 			c.reconnectAttempts = 0
 			c.Clear()
-			c.PrintStatus(c.serverAddr+" - Conectado", terminal.Green)
+			c.PrintStatus(c.serverAddr+" -> Conectado", terminal.Green)
 			return
 		}
 	}
-
 }
 
 func (c *Client) Start(printStatus func(value string, color terminal.TeminalColors), clear func()) {
@@ -96,7 +95,7 @@ func (c *Client) startRead() {
 		case <-c.ReconnectCh:
 			c.ReconnectCh = make(chan struct{})
 			c.conn.Close()
-			c.PrintStatus(c.serverAddr+" - Desconectado", terminal.Red)
+			c.PrintStatus(c.serverAddr+" -> Desconectado!", terminal.Red)
 			c.Connect()
 			continue
 		default:
@@ -109,14 +108,20 @@ func (c *Client) startRead() {
 			buffer := make([]byte, 4096)
 			_, err := c.conn.Read(buffer)
 			if err != nil {
-				c.PrintStatus(err.Error(), terminal.Red)
+				c.PrintStatus(c.serverAddr+" -> "+err.Error(), terminal.Red)
 				c.Stop()
 				continue
 			}
 			// Send server command to the channel
-			c.ServerCommandCh <- string(buffer)
+			if c.ServerCommandCh != nil {
+				c.ServerCommandCh <- string(buffer)
+			}
 		}
 	}
+}
+
+func (c *Client) IsConnected() bool {
+	return c.reconnectAttempts == 0
 }
 
 func (c *Client) startWrite() {
@@ -133,7 +138,8 @@ func (c *Client) startWrite() {
 			if c.conn == nil {
 				continue
 			}
-			_, err := c.conn.Write([]byte(<-c.UserCommandCh))
+			v := <-c.UserCommandCh
+			_, err := c.conn.Write([]byte(v))
 			if err != nil {
 				c.PrintStatus(err.Error(), terminal.Red)
 				c.Stop()

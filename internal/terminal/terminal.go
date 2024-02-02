@@ -1,6 +1,7 @@
 package terminal
 
 import (
+	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -9,11 +10,12 @@ import (
 	"github.com/rivo/tview"
 )
 
-func NewTerminal(serverCommandCh *chan string, userCommandCh *chan string) *Terminal {
+func NewTerminal(serverCommandCh chan string, userCommandCh chan string, clientIsConnected func() bool) *Terminal {
 	return &Terminal{
-		serverCommandCh: serverCommandCh,
-		userCommandCh:   userCommandCh,
-		stopCh:          make(chan struct{}),
+		serverCommandCh:   serverCommandCh,
+		userCommandCh:     userCommandCh,
+		stopCh:            make(chan struct{}),
+		clientIsConnected: clientIsConnected,
 	}
 }
 
@@ -80,11 +82,15 @@ func (t *Terminal) Create(endCh chan struct{}) {
 					case <-t.stopCh:
 						return
 					case <-time.After(time.Duration(interValue) * time.Second):
+						if !t.clientIsConnected() {
+							interValue = 1
+							continue
+						}
 						command := t.data.GetFormItemByLabel("Dados").(*tview.InputField).GetText()
 						if len(command) == 0 {
 							continue
 						}
-						*t.userCommandCh <- command
+						t.userCommandCh <- command
 						t.Print(command, t.sentCommands)
 						t.app.SetFocus(t.data.GetFormItemByLabel("Dados"))
 						numberStr := strings.TrimSuffix(interval, "s")
@@ -101,15 +107,19 @@ func (t *Terminal) Create(endCh chan struct{}) {
 
 	t.data.GetFormItemByLabel("Dados").(*tview.InputField).
 		SetDoneFunc(func(key tcell.Key) {
+			if !t.clientIsConnected() {
+				return
+			}
 			if key == tcell.KeyEnter {
 				// Chama a função de envio ao pressionar "Enter"
 				command := t.data.GetFormItemByLabel("Dados").(*tview.InputField).GetText()
-				if len(command) > 0 {
-					*t.userCommandCh <- command
-					t.Print(command, t.sentCommands)
-					t.data.GetFormItemByLabel("Dados").(*tview.InputField).SetText("")
-					t.app.SetFocus(t.data.GetFormItemByLabel("Dados"))
+				if len(command) == 0 {
+					return
 				}
+				t.userCommandCh <- command
+				//t.Print(command, t.sentCommands)
+				//t.data.GetFormItemByLabel("Dados").(*tview.InputField).SetText("")
+				//t.app.SetFocus(t.data.GetFormItemByLabel("Dados"))
 			}
 		})
 
@@ -131,7 +141,7 @@ func (t *Terminal) Create(endCh chan struct{}) {
 		AddPage("modal", modal, false, false)
 	// Define o flex como a raiz da aplicação
 	if err := t.app.SetRoot(t.pages, true).EnableMouse(true).Run(); err != nil {
-		panic(err)
+		log.Println("ERROR", err)
 	}
 }
 
@@ -140,7 +150,7 @@ func (t *Terminal) ListenServerResponse(endCh chan struct{}) {
 		select {
 		case <-endCh:
 			return
-		case response := <-*t.serverCommandCh:
+		case response := <-t.serverCommandCh:
 			// Imprime a resposta recebida
 			if t.receivedResponses != nil {
 				t.Print(response, t.receivedResponses)

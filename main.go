@@ -18,7 +18,7 @@ func main() {
 	//signal.Notify(signalCh, syscall.SIGTERM)
 
 	myClient := client.NewClient(os.Args[1], endCh)
-	gui := terminal.NewTerminal(&myClient.ServerCommandCh, &myClient.UserCommandCh)
+	gui := terminal.NewTerminal(myClient.ServerCommandCh, myClient.UserCommandCh, myClient.IsConnected)
 
 	go gui.Create(endCh)
 	go gui.ListenServerResponse(endCh)

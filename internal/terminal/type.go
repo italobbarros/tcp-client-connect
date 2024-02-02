@@ -8,8 +8,9 @@ import (
 )
 
 type Terminal struct {
-	serverCommandCh   *chan string
-	userCommandCh     *chan string
+	serverCommandCh   chan string
+	userCommandCh     chan string
+	clientIsConnected func() bool
 	connection        *tview.TextView
 	sentCommands      *tview.TextView
 	receivedResponses *tview.TextView
