@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	maxReconnectAttempts = 10
+	maxReconnectAttempts = 100
 	reconnectInterval    = 2 * time.Second
 )
 
@@ -18,6 +18,9 @@ type Client struct {
 	UserCommandCh     chan string
 	DoneCh            chan struct{}
 	reconnectAttempts int
+	conn              net.Conn
+	Print             func(value string)
+	Clear             func()
 }
 
 // NewClient initializes a new instance of the Client
@@ -31,71 +34,82 @@ func NewClient(serverAddr string) *Client {
 	}
 }
 
-// Connect establishes a connection to the server
+// Start initiates the client
 func (c *Client) Connect() {
-	var conn net.Conn
 	var err error
-
-	// Attempt to reconnect until reaching the maximum number of attempts
-	for c.reconnectAttempts < maxReconnectAttempts {
-		conn, err = net.Dial("tcp", c.serverAddr)
+	for {
+		c.conn, err = net.Dial("tcp", c.serverAddr)
 		if err == nil {
 			break
 		}
 
-		fmt.Printf("Error connecting (attempt %d/%d): %v. Retrying in %v...\n",
-			c.reconnectAttempts+1, maxReconnectAttempts, err, reconnectInterval)
-
+		msg := fmt.Sprintf("Error connecting (attempt %d): %v. Retrying in %v...\n",
+			c.reconnectAttempts+1, err, reconnectInterval)
+		c.Print(msg)
 		c.reconnectAttempts++
 		time.Sleep(reconnectInterval)
 	}
 
 	// If unable to connect after the maximum number of attempts, terminate the application
 	if err != nil {
-		fmt.Printf("Unable to reconnect after %d attempts. Exiting the application.\n", maxReconnectAttempts)
+		print(fmt.Sprintf("Unable to reconnect after %d attempts. Exiting the application.\n", maxReconnectAttempts))
 	}
 
 	// Reset the retry counter after a successful connection
 	c.reconnectAttempts = 0
-
-	defer conn.Close()
-
-	// Receive and print server commands
-	go func() {
-		for {
-			select {
-			case <-c.DoneCh:
-				return
-			default:
-				buffer := make([]byte, 4096)
-				_, err := conn.Read(buffer)
-				if err != nil {
-					fmt.Println("Error receiving response:", err)
-					return
-				}
-				// Send server command to the channel
-				c.ServerCommandCh <- string(buffer)
-			}
-		}
-	}()
-
-	// Receive user input and send commands to the server
-	for {
-		select {
-		case <-c.DoneCh:
-			return
-		default:
-			userInput := <-c.UserCommandCh
-			conn.Write([]byte(userInput))
-		}
-	}
+	c.Clear()
+	c.Print("Conectou!")
 }
 
-// Start initiates the client
-func (c *Client) Start() {
+func (c *Client) Start(print func(value string), clear func()) {
+	time.Sleep(100 * time.Millisecond)
+	c.Print = print
+	c.Clear = clear
 	c.Connect()
+	defer c.conn.Close()
+	// Receive and print server commands
+	go c.startRead()
+	go c.startWrite()
+	select {}
 }
 
 func (c *Client) Stop() {
 	close(c.DoneCh)
+}
+
+func (c *Client) startRead() {
+	for {
+		select {
+		case <-c.DoneCh:
+			c.DoneCh = make(chan struct{})
+			c.Connect()
+			continue
+		default:
+			if c.reconnectAttempts != 0 {
+				continue
+			}
+			buffer := make([]byte, 4096)
+			_, err := c.conn.Read(buffer)
+			if err != nil {
+				c.Print(fmt.Sprintf("Error receiving response:%s", err.Error()))
+				continue
+			}
+			// Send server command to the channel
+			c.ServerCommandCh <- string(buffer)
+		}
+	}
+}
+
+func (c *Client) startWrite() {
+	for {
+		select {
+		case <-c.DoneCh:
+			continue
+		default:
+			if c.reconnectAttempts != 0 {
+				continue
+			}
+			c.conn.Write([]byte(<-c.UserCommandCh))
+		}
+	}
 }

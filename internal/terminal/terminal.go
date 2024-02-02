@@ -1,43 +1,48 @@
-package Interface
+package terminal
 
 import (
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 )
 
-type Interface struct {
-	serverCommandCh   *chan string
-	userCommandCh     *chan string
-	sentCommands      *tview.TextView
-	receivedResponses *tview.TextView
-	app               *tview.Application
-	data              *tview.Form
-	config            *tview.Form
-	stopCh            chan struct{}
-	mutex             sync.Mutex
-}
-
-func NewInterface(serverCommandCh *chan string, userCommandCh *chan string) *Interface {
-	return &Interface{
+func NewTerminal(serverCommandCh *chan string, userCommandCh *chan string) *Terminal {
+	return &Terminal{
 		serverCommandCh: serverCommandCh,
 		userCommandCh:   userCommandCh,
 		stopCh:          make(chan struct{}),
 	}
 }
 
-func (i *Interface) Create(doneCh chan struct{}) {
+func (i *Terminal) Create(doneCh chan struct{}) {
 	i.app = tview.NewApplication()
 	go func() {
 		for {
 			select {
 			case <-doneCh:
 				i.app.Stop()
+			case <-time.After(time.Duration(1) * time.Second):
+				i.app.Draw()
 			}
+		}
+	}()
+	go func() {
+		for {
+			// Use tview.App.QueueUpdate para garantir operações seguras na GUI
+			if i.sentCommands != nil {
+				i.app.QueueUpdate(func() {
+					i.sentCommands.Clear()
+				})
+			}
+			if i.receivedResponses != nil {
+				i.app.QueueUpdate(func() {
+					i.receivedResponses.Clear()
+				})
+			}
+			time.Sleep(5 * time.Minute)
 		}
 	}()
 	// Cria dois novos TextViews para os comandos enviados e recebidos
@@ -64,14 +69,15 @@ func (i *Interface) Create(doneCh chan struct{}) {
 		_, interval := i.config.GetFormItemByLabel("Intervalo").(*tview.DropDown).GetCurrentOption()
 		if interval != "None" {
 			close(i.stopCh)
-			time.Sleep(100 * time.Millisecond)
-			i.stopCh = make(chan struct{})
 			go func() {
+				time.Sleep(1 * time.Millisecond)
+				i.stopCh = make(chan struct{})
+				var interValue int = 0
 				for {
 					select {
 					case <-i.stopCh:
 						return
-					default:
+					case <-time.After(time.Duration(interValue) * time.Second):
 						i.mutex.Lock()
 						command := i.data.GetFormItemByLabel("Dados").(*tview.InputField).GetText()
 						*i.userCommandCh <- command
@@ -79,11 +85,11 @@ func (i *Interface) Create(doneCh chan struct{}) {
 						i.app.SetFocus(i.config.GetFormItemByLabel("Dados"))
 						i.mutex.Unlock()
 						numberStr := strings.TrimSuffix(interval, "s")
-						interValue, err := strconv.Atoi(numberStr)
+						v, err := strconv.Atoi(numberStr)
 						if err != nil {
 							return
 						}
-						time.Sleep(time.Duration(interValue) * time.Second)
+						interValue = v
 					}
 				}
 			}()
@@ -118,7 +124,7 @@ func (i *Interface) Create(doneCh chan struct{}) {
 	}
 }
 
-func (i *Interface) ListenServerResponse(doneCh chan struct{}) {
+func (i *Terminal) ListenServerResponse(doneCh chan struct{}) {
 	for {
 		select {
 		case <-doneCh:
@@ -131,8 +137,32 @@ func (i *Interface) ListenServerResponse(doneCh chan struct{}) {
 	}
 }
 
-func (i *Interface) Print(value string, view *tview.TextView) {
+func (i *Terminal) Print(value string, view *tview.TextView) {
 	data := time.Now().Format("2006-01-02 15:04:05") + " - " + value + "\n"
 	view.Write([]byte(data))
 	view.ScrollToEnd()
+}
+
+func (i *Terminal) PrintInput(value string) {
+	i.mutex.Lock()
+	i.app.QueueUpdate(func() {
+		i.Print(value, i.sentCommands)
+	})
+	i.mutex.Unlock()
+}
+
+func (i *Terminal) ClearInput() {
+	i.mutex.Lock()
+	i.app.QueueUpdate(func() {
+		i.sentCommands.Clear()
+	})
+	i.mutex.Unlock()
+}
+
+func (i *Terminal) ClearOutput() {
+	i.mutex.Lock()
+	i.app.QueueUpdate(func() {
+		i.receivedResponses.Clear()
+	})
+	i.mutex.Unlock()
 }

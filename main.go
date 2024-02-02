@@ -17,7 +17,7 @@ func main() {
 	}
 	serverAddr := os.Args[1]
 	myClient := client.NewClient(serverAddr)
-	gui := terminal.NewInterface(&myClient.ServerCommandCh, &myClient.UserCommandCh)
+	gui := terminal.NewTerminal(&myClient.ServerCommandCh, &myClient.UserCommandCh)
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
 
@@ -34,5 +34,5 @@ func main() {
 	}()
 	go gui.Create(myClient.DoneCh)
 	go gui.ListenServerResponse(myClient.DoneCh)
-	myClient.Start()
+	myClient.Start(gui.PrintInput, gui.ClearInput)
 }
