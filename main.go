@@ -34,5 +34,5 @@ func main() {
 	}()
 	go gui.Create(myClient.DoneCh)
 	go gui.ListenServerResponse(myClient.DoneCh)
-	myClient.Start(gui.PrintInput, gui.ClearInput)
+	myClient.Start(gui.PrintInput, gui.PrintStatus, gui.ClearInput)
 }

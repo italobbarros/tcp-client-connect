@@ -32,19 +32,16 @@ func (i *Terminal) Create(doneCh chan struct{}) {
 	go func() {
 		for {
 			// Use tview.App.QueueUpdate para garantir operações seguras na GUI
-			if i.sentCommands != nil {
-				i.app.QueueUpdate(func() {
-					i.sentCommands.Clear()
-				})
-			}
-			if i.receivedResponses != nil {
-				i.app.QueueUpdate(func() {
-					i.receivedResponses.Clear()
-				})
-			}
+			i.ClearInput()
+			i.ClearOutput()
 			time.Sleep(5 * time.Minute)
 		}
 	}()
+	i.connection = tview.NewTextView().
+		SetDynamicColors(true).
+		SetWrap(true)
+	i.connection.SetBorder(true).SetTitle("Status").SetTitleAlign(tview.AlignLeft)
+
 	// Cria dois novos TextViews para os comandos enviados e recebidos
 	i.sentCommands = tview.NewTextView().
 		SetDynamicColors(true).
@@ -57,7 +54,7 @@ func (i *Terminal) Create(doneCh chan struct{}) {
 
 	// Cria um novo Form para a entrada do usuário
 	i.data = tview.NewForm().
-		AddInputField("Dados", "", 100, nil, nil) //.
+		AddInputField("Dados", "", 50, nil, nil) //.
 	i.data.SetBorder(true).SetTitle("Enviar dados").SetTitleAlign(tview.AlignLeft)
 
 	i.config = tview.NewForm().
@@ -111,15 +108,20 @@ func (i *Terminal) Create(doneCh chan struct{}) {
 				i.mutex.Unlock()
 			}
 		})
-	// Cria um novo Grid e adiciona o Form, os TextViews e um espaço vazio
-	grid := tview.NewGrid().
-		AddItem(i.sentCommands, 0, 0, 3, 1, 0, 0, false).
-		AddItem(i.receivedResponses, 0, 1, 3, 1, 0, 0, false).
-		AddItem(i.data, 3, 0, 1, 2, 0, 0, true).
-		AddItem(i.config, 4, 0, 1, 2, 0, 0, true)
+
+	flex := tview.NewFlex().
+		AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
+			AddItem(i.connection, 4, 1, false).
+			AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
+				AddItem(i.sentCommands, 0, 1, false).
+				AddItem(i.receivedResponses, 0, 1, false), 0, 2, false).
+			AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
+				AddItem(i.data, 0, 1, false).
+				AddItem(i.config, 0, 1, false), 7, 1, false,
+			), 0, 1, false)
 
 	// Define o Grid como a raiz da aplicação
-	if err := i.app.SetRoot(grid, true).EnableMouse(true).Run(); err != nil {
+	if err := i.app.SetRoot(flex, true).EnableMouse(true).Run(); err != nil {
 		panic(err)
 	}
 }
@@ -131,38 +133,10 @@ func (i *Terminal) ListenServerResponse(doneCh chan struct{}) {
 			return
 		case response := <-*i.serverCommandCh:
 			// Imprime a resposta recebida
-			i.Print(response, i.receivedResponses)
+			if i.receivedResponses != nil {
+				i.Print(response, i.receivedResponses)
+			}
 			i.app.Draw()
 		}
 	}
-}
-
-func (i *Terminal) Print(value string, view *tview.TextView) {
-	data := time.Now().Format("2006-01-02 15:04:05") + " - " + value + "\n"
-	view.Write([]byte(data))
-	view.ScrollToEnd()
-}
-
-func (i *Terminal) PrintInput(value string) {
-	i.mutex.Lock()
-	i.app.QueueUpdate(func() {
-		i.Print(value, i.sentCommands)
-	})
-	i.mutex.Unlock()
-}
-
-func (i *Terminal) ClearInput() {
-	i.mutex.Lock()
-	i.app.QueueUpdate(func() {
-		i.sentCommands.Clear()
-	})
-	i.mutex.Unlock()
-}
-
-func (i *Terminal) ClearOutput() {
-	i.mutex.Lock()
-	i.app.QueueUpdate(func() {
-		i.receivedResponses.Clear()
-	})
-	i.mutex.Unlock()
 }

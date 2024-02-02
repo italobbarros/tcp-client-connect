@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net"
 	"time"
+
+	"github.com/italobbarros/tcp-client-connect/internal/terminal"
 )
 
 const (
@@ -20,6 +22,7 @@ type Client struct {
 	reconnectAttempts int
 	conn              net.Conn
 	Print             func(value string)
+	PrintStatus       func(value string, color terminal.TeminalColors)
 	Clear             func()
 }
 
@@ -38,6 +41,7 @@ func NewClient(serverAddr string) *Client {
 func (c *Client) Connect() {
 	var err error
 	for {
+		c.PrintStatus(c.serverAddr+" -> Conectando...", terminal.Blue)
 		c.conn, err = net.Dial("tcp", c.serverAddr)
 		if err == nil {
 			break
@@ -45,7 +49,7 @@ func (c *Client) Connect() {
 
 		msg := fmt.Sprintf("Error connecting (attempt %d): %v. Retrying in %v...\n",
 			c.reconnectAttempts+1, err, reconnectInterval)
-		c.Print(msg)
+		c.PrintStatus(msg, terminal.Red)
 		c.reconnectAttempts++
 		time.Sleep(reconnectInterval)
 	}
@@ -58,15 +62,15 @@ func (c *Client) Connect() {
 	// Reset the retry counter after a successful connection
 	c.reconnectAttempts = 0
 	c.Clear()
-	c.Print("Conectou!")
+	c.PrintStatus(c.serverAddr+" - Conectado", terminal.Green)
 }
 
-func (c *Client) Start(print func(value string), clear func()) {
+func (c *Client) Start(print func(value string), printStatus func(value string, color terminal.TeminalColors), clear func()) {
 	time.Sleep(100 * time.Millisecond)
 	c.Print = print
+	c.PrintStatus = printStatus
 	c.Clear = clear
 	c.Connect()
-	defer c.conn.Close()
 	// Receive and print server commands
 	go c.startRead()
 	go c.startWrite()
@@ -82,6 +86,8 @@ func (c *Client) startRead() {
 		select {
 		case <-c.DoneCh:
 			c.DoneCh = make(chan struct{})
+			c.conn.Close()
+			c.PrintStatus(c.serverAddr+" - Desconectado", terminal.Red)
 			c.Connect()
 			continue
 		default:
