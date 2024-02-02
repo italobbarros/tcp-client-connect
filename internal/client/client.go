@@ -3,6 +3,7 @@ package client
 import (
 	"fmt"
 	"net"
+	"os"
 	"time"
 
 	"github.com/italobbarros/tcp-client-connect/internal/terminal"
@@ -18,21 +19,22 @@ type Client struct {
 	serverAddr        string
 	ServerCommandCh   chan string
 	UserCommandCh     chan string
-	DoneCh            chan struct{}
+	ReconnectCh       chan struct{}
+	endCh             chan struct{}
 	reconnectAttempts int
 	conn              net.Conn
-	Print             func(value string)
 	PrintStatus       func(value string, color terminal.TeminalColors)
 	Clear             func()
 }
 
 // NewClient initializes a new instance of the Client
-func NewClient(serverAddr string) *Client {
+func NewClient(serverAddr string, endCh chan struct{}) *Client {
 	return &Client{
 		serverAddr:        serverAddr,
 		ServerCommandCh:   make(chan string),
 		UserCommandCh:     make(chan string),
-		DoneCh:            make(chan struct{}),
+		ReconnectCh:       make(chan struct{}),
+		endCh:             endCh,
 		reconnectAttempts: 0,
 	}
 }
@@ -41,51 +43,58 @@ func NewClient(serverAddr string) *Client {
 func (c *Client) Connect() {
 	var err error
 	for {
-		c.PrintStatus(c.serverAddr+" -> Conectando...", terminal.Blue)
-		c.conn, err = net.Dial("tcp", c.serverAddr)
-		if err == nil {
-			break
+		select {
+		case <-c.endCh:
+			return
+		case <-time.After(reconnectInterval):
+			c.PrintStatus(c.serverAddr+" -> Conectando...", terminal.Blue)
+			c.conn, err = net.Dial("tcp", c.serverAddr)
+
+			msg := fmt.Sprintf("Error connecting (attempt %d): %v. Retrying in %v...\n",
+				c.reconnectAttempts+1, err, reconnectInterval)
+			c.PrintStatus(msg, terminal.Red)
+			c.reconnectAttempts++
+			if err != nil {
+				continue
+			}
+
+			// Reset the retry counter after a successful connection
+			c.reconnectAttempts = 0
+			c.Clear()
+			c.PrintStatus(c.serverAddr+" - Conectado", terminal.Green)
+			return
 		}
-
-		msg := fmt.Sprintf("Error connecting (attempt %d): %v. Retrying in %v...\n",
-			c.reconnectAttempts+1, err, reconnectInterval)
-		c.PrintStatus(msg, terminal.Red)
-		c.reconnectAttempts++
-		time.Sleep(reconnectInterval)
 	}
 
-	// If unable to connect after the maximum number of attempts, terminate the application
-	if err != nil {
-		print(fmt.Sprintf("Unable to reconnect after %d attempts. Exiting the application.\n", maxReconnectAttempts))
-	}
-
-	// Reset the retry counter after a successful connection
-	c.reconnectAttempts = 0
-	c.Clear()
-	c.PrintStatus(c.serverAddr+" - Conectado", terminal.Green)
 }
 
-func (c *Client) Start(print func(value string), printStatus func(value string, color terminal.TeminalColors), clear func()) {
-	time.Sleep(100 * time.Millisecond)
-	c.Print = print
+func (c *Client) Start(printStatus func(value string, color terminal.TeminalColors), clear func()) {
 	c.PrintStatus = printStatus
 	c.Clear = clear
-	c.Connect()
+	go c.Connect()
 	// Receive and print server commands
 	go c.startRead()
 	go c.startWrite()
-	select {}
+	select {
+	case <-c.endCh:
+		close(c.ServerCommandCh)
+		close(c.UserCommandCh)
+		c.Stop()
+		os.Exit(0)
+	}
 }
 
 func (c *Client) Stop() {
-	close(c.DoneCh)
+	close(c.ReconnectCh)
 }
 
 func (c *Client) startRead() {
 	for {
 		select {
-		case <-c.DoneCh:
-			c.DoneCh = make(chan struct{})
+		case <-c.endCh:
+			return
+		case <-c.ReconnectCh:
+			c.ReconnectCh = make(chan struct{})
 			c.conn.Close()
 			c.PrintStatus(c.serverAddr+" - Desconectado", terminal.Red)
 			c.Connect()
@@ -94,10 +103,14 @@ func (c *Client) startRead() {
 			if c.reconnectAttempts != 0 {
 				continue
 			}
+			if c.conn == nil {
+				continue
+			}
 			buffer := make([]byte, 4096)
 			_, err := c.conn.Read(buffer)
 			if err != nil {
-				c.Print(fmt.Sprintf("Error receiving response:%s", err.Error()))
+				c.PrintStatus(err.Error(), terminal.Red)
+				c.Stop()
 				continue
 			}
 			// Send server command to the channel
@@ -109,13 +122,22 @@ func (c *Client) startRead() {
 func (c *Client) startWrite() {
 	for {
 		select {
-		case <-c.DoneCh:
+		case <-c.endCh:
+			return
+		case <-c.ReconnectCh:
 			continue
 		default:
 			if c.reconnectAttempts != 0 {
 				continue
 			}
-			c.conn.Write([]byte(<-c.UserCommandCh))
+			if c.conn == nil {
+				continue
+			}
+			_, err := c.conn.Write([]byte(<-c.UserCommandCh))
+			if err != nil {
+				c.PrintStatus(err.Error(), terminal.Red)
+				c.Stop()
+			}
 		}
 	}
 }

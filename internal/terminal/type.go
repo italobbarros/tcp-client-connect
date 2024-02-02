@@ -18,6 +18,7 @@ type Terminal struct {
 	config            *tview.Form
 	stopCh            chan struct{}
 	mutex             sync.Mutex
+	pages             *tview.Pages
 }
 
 type TeminalColors int

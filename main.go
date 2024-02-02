@@ -3,8 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/italobbarros/tcp-client-connect/internal/client"
 	terminal "github.com/italobbarros/tcp-client-connect/internal/terminal"
@@ -15,24 +13,14 @@ func main() {
 		fmt.Println("Usage: ./tcpclient <address>")
 		return
 	}
-	serverAddr := os.Args[1]
-	myClient := client.NewClient(serverAddr)
+	//signalCh := make(chan os.Signal, 1)
+	endCh := make(chan struct{}, 1)
+	//signal.Notify(signalCh, syscall.SIGTERM)
+
+	myClient := client.NewClient(os.Args[1], endCh)
 	gui := terminal.NewTerminal(&myClient.ServerCommandCh, &myClient.UserCommandCh)
-	signalCh := make(chan os.Signal, 1)
-	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
 
-	go func() {
-		// Aguarde um sinal para encerrar a aplicação
-		<-signalCh
-
-		// Feche os canais e encerre a aplicação
-		close(myClient.ServerCommandCh)
-		close(myClient.UserCommandCh)
-		myClient.Stop()
-
-		os.Exit(0)
-	}()
-	go gui.Create(myClient.DoneCh)
-	go gui.ListenServerResponse(myClient.DoneCh)
-	myClient.Start(gui.PrintInput, gui.PrintStatus, gui.ClearInput)
+	go gui.Create(endCh)
+	go gui.ListenServerResponse(endCh)
+	myClient.Start(gui.PrintStatus, gui.ClearInput)
 }
