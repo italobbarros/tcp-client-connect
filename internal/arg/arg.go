@@ -11,7 +11,7 @@ import (
 
 // Config é uma estrutura para armazenar os valores dos argumentos
 type Config struct {
-	Addr string
+	Addr []string
 	Help bool
 	Num  int
 	Mode string
@@ -28,7 +28,6 @@ func ParseFlags() (Config, error) {
 	flag.Parse()
 
 	config := Config{
-		Addr: *addrPtr,
 		Help: *helpPtr,
 		Num:  *numPtr,
 		Mode: *modePtr,
@@ -39,11 +38,50 @@ func ParseFlags() (Config, error) {
 		return config, fmt.Errorf("")
 	}
 
-	if err := isValidAddr(config.Addr); err != nil {
+	if err := checkAddr(addrPtr, &config); err != nil {
 		return config, err
 	}
 
 	return config, nil
+}
+
+func checkAddr(addr *string, cfg *Config) error {
+	addrList := strings.Split(*addr, ",")
+	if len(addrList) == 1 {
+		if err := isValidAddr(addrList[0]); err != nil {
+			return err
+		}
+		cfg.Addr = addrList
+		return nil
+	}
+	var ip string
+	for i, addr := range addrList {
+		if i == 0 {
+			if err := isValidAddr(addr); err != nil {
+				return err
+			}
+			ip = strings.Split(addr, ":")[0]
+			cfg.Addr = append(cfg.Addr, addr)
+			continue
+		}
+		addrParts := strings.Split(addr, ":")
+		if len(addrParts) != 2 {
+			return fmt.Errorf("invalid address. The format should be <IP>:<Port> \n Ex: localhost:8080")
+		}
+		if addrParts[0] == "" {
+			if err := isValidPort(addrParts[1]); err != nil {
+				return fmt.Errorf("Addr pos: %d - %s", i, err.Error())
+			}
+			cfg.Addr = append(cfg.Addr, ip+addr)
+		} else {
+			if err := isValidAddr(addr); err != nil {
+				return err
+			}
+			ip = strings.Split(addr, ":")[0]
+			cfg.Addr = append(cfg.Addr, addr)
+		}
+	}
+	return nil
 }
 
 func isValidAddr(addr string) error {
@@ -61,6 +99,12 @@ func isValidAddr(addr string) error {
 	if ip != "localhost" && net.ParseIP(ip) == nil {
 		return fmt.Errorf("Invalid IP. The IP address should be IPv4 form.\n Ex: 10.10.10.180")
 	}
+	if err := isValidPort(port); err != nil {
+		return err
+	}
+	return nil
+}
+func isValidPort(port string) error {
 	v, err := strconv.Atoi(port)
 	if err != nil {
 		return fmt.Errorf("Invalid port. The port should be a integer number between 1 and 65535. \n Ex: 8080")

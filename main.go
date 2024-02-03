@@ -19,10 +19,18 @@ func main() {
 	}
 	// Verifica se a ajuda foi solicitada
 	endCh := make(chan struct{}, 1)
-	myClient := client.NewClient(config.Addr, endCh)
-	gui := terminal.NewTerminal(myClient.ServerCommandCh, myClient.UserCommandCh, myClient.IsConnected)
+	managerClients := client.ManagerClients{
+		Map: make(map[int]*client.Client),
+	}
 
+	for i, addr := range config.Addr {
+		myClient := client.NewClient(i, addr, endCh)
+		managerClients.AddClients(i, myClient)
+	}
+
+	gui := terminal.NewTerminal(&managerClients)
+	managerClients.ReceiveDataToClients(gui.Input, gui.StatusCh)
 	go gui.Create(endCh)
 	go gui.ListenServerResponse(endCh)
-	myClient.Start(gui.PrintStatus, gui.ClearAll)
+	managerClients.Start(endCh)
 }

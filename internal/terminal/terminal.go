@@ -6,15 +6,17 @@ import (
 	"time"
 
 	"github.com/gdamore/tcell/v2"
+	"github.com/italobbarros/tcp-client-connect/internal/client"
 	"github.com/rivo/tview"
 )
 
-func NewTerminal(serverCommandCh chan []byte, userCommandCh chan []byte, clientIsConnected func() bool) *Terminal {
+func NewTerminal(managerClient *client.ManagerClients) *Terminal {
 	return &Terminal{
-		serverCommandCh:   serverCommandCh,
-		userCommandCh:     userCommandCh,
-		stopCh:            make(chan struct{}),
-		clientIsConnected: clientIsConnected,
+		managerClient: managerClient,
+		stopCh:        make(chan struct{}),
+		StatusCh:      make(chan client.StatusMsg, managerClient.GetNumberClients()),
+		Input:         make(chan client.DataType, managerClient.GetNumberClients()),
+		Output:        make(chan client.DataType, managerClient.GetNumberClients()),
 	}
 }
 
@@ -25,6 +27,8 @@ func (t *Terminal) Create(endCh chan struct{}) {
 			select {
 			case <-endCh:
 				t.app.Stop()
+			case stats := <-t.StatusCh:
+				t.PrintStatus(stats.Msg, TeminalColors(stats.Color))
 			case <-time.After(time.Duration(1) * time.Second):
 				t.app.Draw()
 			}
@@ -82,18 +86,21 @@ func (t *Terminal) Create(endCh chan struct{}) {
 						case <-t.stopCh:
 							return
 						case <-time.After(time.Duration(interValue) * time.Second):
-							if !t.clientIsConnected() {
-								interValue = 1
-								continue
-							}
 							command := t.data.GetFormItemByLabel("Data").(*tview.InputField).GetText()
 							if len(command) == 0 {
 								continue
 							}
-							data := []byte(command)
-							t.userCommandCh <- data
-							t.Print(data, t.sentCommands)
-							//t.app.SetFocus(t.data.GetFormItemByLabel("Data"))
+							data := client.DataType{
+								Data:   []byte(command),
+								ConnId: 0,
+							}
+							clientsId := t.managerClient.SendDataToClients(data)
+							go func() {
+								for id := range clientsId {
+									data.ConnId = id
+									t.Print(data, t.sentCommands)
+								}
+							}()
 							numberStr := strings.TrimSuffix(interval, "s")
 							v, err := strconv.Atoi(numberStr)
 							if err != nil {
@@ -121,18 +128,23 @@ func (t *Terminal) Create(endCh chan struct{}) {
 	t.config.SetBorder(true).SetTitle("Config").SetTitleAlign(tview.AlignLeft)
 	t.data.GetFormItemByLabel("Data").(*tview.InputField).
 		SetDoneFunc(func(key tcell.Key) {
-			if !t.clientIsConnected() {
-				return
-			}
 			if key == tcell.KeyEnter {
 				// Chama a função de envio ao pressionar "Enter"
 				command := t.data.GetFormItemByLabel("Data").(*tview.InputField).GetText()
 				if len(command) == 0 {
 					return
 				}
-				data := []byte(command)
-				t.userCommandCh <- data
-				t.Print(data, t.sentCommands)
+				data := client.DataType{
+					Data:   []byte(command),
+					ConnId: 0,
+				}
+				clientsId := t.managerClient.SendDataToClients(data)
+				go func() {
+					for id := range clientsId {
+						data.ConnId = id
+						t.Print(data, t.sentCommands)
+					}
+				}()
 				t.data.GetFormItemByLabel("Data").(*tview.InputField).SetText("")
 				t.app.SetFocus(t.data.GetFormItemByLabel("Data"))
 			}
@@ -172,7 +184,7 @@ func (t *Terminal) ListenServerResponse(endCh chan struct{}) {
 		select {
 		case <-endCh:
 			return
-		case response := <-t.serverCommandCh:
+		case response := <-t.Input:
 			// Imprime a resposta recebida
 			if t.receivedResponses != nil {
 				t.Print(response, t.receivedResponses)

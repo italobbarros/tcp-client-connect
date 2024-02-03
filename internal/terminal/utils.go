@@ -1,13 +1,15 @@
 package terminal
 
 import (
+	"fmt"
 	"time"
 
+	"github.com/italobbarros/tcp-client-connect/internal/client"
 	"github.com/rivo/tview"
 )
 
-func (i *Terminal) Print(value []byte, view *tview.TextView) {
-	data := time.Now().Format("2006-01-02 15:04:05") + " - " + string(value) + "\n"
+func (i *Terminal) Print(msg client.DataType, view *tview.TextView) {
+	data := fmt.Sprintf("[%s](%d) - %s\n", time.Now().Format("2006-01-02 15:04:05"), msg.ConnId, string(msg.Data))
 	view.Write([]byte(data))
 	view.ScrollToEnd()
 }
@@ -24,10 +26,10 @@ func (i *Terminal) PrintStatus(value string, color TeminalColors) {
 	}
 }
 
-func (i *Terminal) PrintInput(value []byte) {
+func (i *Terminal) PrintInput(msg client.DataType) {
 	if i.sentCommands != nil {
 		i.app.QueueUpdate(func() {
-			i.Print(value, i.sentCommands)
+			i.Print(msg, i.sentCommands)
 		})
 	}
 }

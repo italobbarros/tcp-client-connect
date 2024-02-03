@@ -4,13 +4,16 @@ import (
 	"sync"
 
 	"github.com/gdamore/tcell/v2"
+	"github.com/italobbarros/tcp-client-connect/internal/client"
 	"github.com/rivo/tview"
 )
 
 type Terminal struct {
-	serverCommandCh   chan []byte
-	userCommandCh     chan []byte
-	clientIsConnected func() bool
+	managerClient *client.ManagerClients
+	StatusCh      chan client.StatusMsg
+	Input         chan client.DataType
+	Output        chan client.DataType
+	// Terminal
 	connection        *tview.TextView
 	sentCommands      *tview.TextView
 	receivedResponses *tview.TextView
