@@ -1,7 +1,6 @@
 package terminal
 
 import (
-	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -51,79 +50,90 @@ func (t *Terminal) Create(endCh chan struct{}) {
 	t.sentCommands = tview.NewTextView().
 		SetDynamicColors(true).
 		SetWrap(true)
-	t.sentCommands.SetBorder(true).SetTitle("Enviados").SetTitleAlign(tview.AlignLeft)
+	t.sentCommands.SetBorder(true).SetTitle("Output").SetTitleAlign(tview.AlignLeft)
 	t.receivedResponses = tview.NewTextView().
 		SetDynamicColors(true).
 		SetWrap(true)
-	t.receivedResponses.SetBorder(true).SetTitle("Recebidos").SetTitleAlign(tview.AlignLeft)
+	t.receivedResponses.SetBorder(true).SetTitle("Input").SetTitleAlign(tview.AlignLeft)
 
 	// Cria um novo Form para a entrada do usuário
 	t.data = tview.NewForm().
-		AddInputField("Dados", "", 50, nil, nil) //.
-	t.data.SetBorder(true).SetTitle("Enviar dados").SetTitleAlign(tview.AlignLeft)
+		AddInputField("Data", "", 50, nil, nil) //.
+	t.data.SetBorder(true).SetTitle("Send Data").SetTitleAlign(tview.AlignLeft)
 
 	t.config = tview.NewForm().
-		AddDropDown("Intervalo", []string{"None", "5s", "10s", "60s"}, 0, nil).
-		AddButton("Save", nil)
-	t.config.SetBorder(true).SetTitle("Config param").SetTitleAlign(tview.AlignLeft)
-
-	t.config.GetButton(0).SetSelectedFunc(func() {
-		_, interval := t.config.GetFormItemByLabel("Intervalo").(*tview.DropDown).GetCurrentOption()
-		if interval != "None" {
-			close(t.stopCh)
-			go func() {
-				time.Sleep(1 * time.Millisecond)
-				t.stopCh = make(chan struct{})
-				var interValue int = 0
-				for {
-					select {
-					case <-endCh:
-						return
-					case <-t.stopCh:
-						return
-					case <-time.After(time.Duration(interValue) * time.Second):
-						if !t.clientIsConnected() {
-							interValue = 1
-							continue
-						}
-						command := t.data.GetFormItemByLabel("Dados").(*tview.InputField).GetText()
-						if len(command) == 0 {
-							continue
-						}
-						t.userCommandCh <- command
-						t.Print(command, t.sentCommands)
-						t.app.SetFocus(t.data.GetFormItemByLabel("Dados"))
-						numberStr := strings.TrimSuffix(interval, "s")
-						v, err := strconv.Atoi(numberStr)
-						if err != nil {
+		AddDropDown("Interval", []string{"None", "5s", "10s", "60s"}, 0, nil).
+		AddDropDown("PagesView", []string{"Default", "OnlyInput"}, 0, nil).
+		AddButton("Save", func() {
+			_, interval := t.config.GetFormItemByLabel("Interval").(*tview.DropDown).GetCurrentOption()
+			if interval != "None" {
+				close(t.stopCh)
+				go func() {
+					time.Sleep(1 * time.Millisecond)
+					t.stopCh = make(chan struct{})
+					var interValue int = 0
+					for {
+						select {
+						case <-endCh:
 							return
+						case <-t.stopCh:
+							return
+						case <-time.After(time.Duration(interValue) * time.Second):
+							if !t.clientIsConnected() {
+								interValue = 1
+								continue
+							}
+							command := t.data.GetFormItemByLabel("Data").(*tview.InputField).GetText()
+							if len(command) == 0 {
+								continue
+							}
+							t.userCommandCh <- command
+							t.Print(command, t.sentCommands)
+							//t.app.SetFocus(t.data.GetFormItemByLabel("Data"))
+							numberStr := strings.TrimSuffix(interval, "s")
+							v, err := strconv.Atoi(numberStr)
+							if err != nil {
+								return
+							}
+							interValue = v
 						}
-						interValue = v
 					}
+				}()
+			}
+			_, pages := t.config.GetFormItemByLabel("PagesView").(*tview.DropDown).GetCurrentOption()
+			if pages == "Default" {
+				if t.pages != nil {
+					t.pages.ShowPage("page_in_and_out")
+					t.pages.HidePage("page_out_only")
 				}
-			}()
-		}
-	})
+			}
+			if pages == "OnlyInput" {
+				if t.pages != nil {
+					t.pages.ShowPage("page_out_only")
+					t.pages.HidePage("page_in_and_out")
+				}
+			}
+		})
 
-	t.data.GetFormItemByLabel("Dados").(*tview.InputField).
+	t.data.GetFormItemByLabel("Data").(*tview.InputField).
 		SetDoneFunc(func(key tcell.Key) {
 			if !t.clientIsConnected() {
 				return
 			}
 			if key == tcell.KeyEnter {
 				// Chama a função de envio ao pressionar "Enter"
-				command := t.data.GetFormItemByLabel("Dados").(*tview.InputField).GetText()
+				command := t.data.GetFormItemByLabel("Data").(*tview.InputField).GetText()
 				if len(command) == 0 {
 					return
 				}
 				t.userCommandCh <- command
-				//t.Print(command, t.sentCommands)
-				//t.data.GetFormItemByLabel("Dados").(*tview.InputField).SetText("")
-				//t.app.SetFocus(t.data.GetFormItemByLabel("Dados"))
+				t.Print(command, t.sentCommands)
+				t.data.GetFormItemByLabel("Data").(*tview.InputField).SetText("")
+				t.app.SetFocus(t.data.GetFormItemByLabel("Data"))
 			}
 		})
 
-	background := tview.NewFlex().
+	page_in_and_out := tview.NewFlex().
 		AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
 			AddItem(t.connection, 4, 1, false).
 			AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
@@ -131,17 +141,28 @@ func (t *Terminal) Create(endCh chan struct{}) {
 				AddItem(t.receivedResponses, 0, 1, false), 0, 2, false).
 			AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
 				AddItem(t.data, 0, 1, true).
-				AddItem(t.config, 0, 1, false), 7, 1, false,
+				AddItem(t.config, 0, 1, false), 10, 1, false,
+			), 0, 1, true)
+
+	page_out_only := tview.NewFlex().
+		AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
+			AddItem(t.connection, 4, 1, false).
+			AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
+				AddItem(t.receivedResponses, 0, 1, false), 0, 2, false).
+			AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
+				AddItem(t.data, 0, 1, true).
+				AddItem(t.config, 0, 1, false), 10, 1, false,
 			), 0, 1, true)
 
 	modal := t.ConfigModal(endCh)
 
 	t.pages = tview.NewPages().
-		AddPage("background", background, true, true).
+		AddPage("page_in_and_out", page_in_and_out, true, true).
+		AddPage("page_out_only", page_out_only, true, false).
 		AddPage("modal", modal, false, false)
 	// Define o flex como a raiz da aplicação
 	if err := t.app.SetRoot(t.pages, true).EnableMouse(true).Run(); err != nil {
-		log.Println("ERROR", err)
+		panic(err)
 	}
 }
 
