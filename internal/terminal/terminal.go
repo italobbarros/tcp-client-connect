@@ -59,7 +59,7 @@ func (t *Terminal) Create(endCh chan struct{}) {
 
 	// Cria um novo Form para a entrada do usuário
 	t.data = tview.NewForm().
-		AddInputField("Data", "", 100, nil, nil) //.
+		AddInputField("Data", "", 150, nil, nil) //.
 	t.data.SetBorder(true).SetTitle("Send Data").SetTitleAlign(tview.AlignLeft)
 
 	t.config = tview.NewForm().
@@ -193,6 +193,10 @@ func (t *Terminal) ConfigModal(endCh chan struct{}) tview.Primitive {
 	modalBase := tview.NewModal().
 		SetText("Do you want to quit the application?").
 		AddButtons([]string{"Quit", "Cancel"}).
+		SetButtonActivatedStyle(tcell.StyleDefault.
+			Foreground(tcell.ColorRed).
+			Background(tcell.ColorWhite).
+			Bold(true)).
 		SetDoneFunc(func(buttonIndex int, buttonLabel string) {
 			if buttonLabel == "Quit" {
 				t.app.Stop()
