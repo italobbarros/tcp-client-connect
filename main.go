@@ -2,22 +2,24 @@ package main
 
 import (
 	"fmt"
-	"os"
 
+	"github.com/italobbarros/tcp-client-connect/internal/arg"
 	"github.com/italobbarros/tcp-client-connect/internal/client"
 	terminal "github.com/italobbarros/tcp-client-connect/internal/terminal"
 )
 
 func main() {
-	if len(os.Args) != 2 {
-		fmt.Println("Usage: ./tcpclient <address>")
+	config, err := arg.ParseFlags()
+	if err != nil {
+		errStr := err.Error()
+		if errStr != "" {
+			fmt.Println("Error: " + errStr)
+		}
 		return
 	}
-	//signalCh := make(chan os.Signal, 1)
+	// Verifica se a ajuda foi solicitada
 	endCh := make(chan struct{}, 1)
-	//signal.Notify(signalCh, syscall.SIGTERM)
-
-	myClient := client.NewClient(os.Args[1], endCh)
+	myClient := client.NewClient(config.Addr, endCh)
 	gui := terminal.NewTerminal(myClient.ServerCommandCh, myClient.UserCommandCh, myClient.IsConnected)
 
 	go gui.Create(endCh)
