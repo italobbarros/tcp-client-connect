@@ -42,6 +42,8 @@ func (t *Terminal) Create(endCh chan struct{}) {
 		}
 	}()
 	t.connection = tview.NewTextView().
+		SetText("Desconectado!").
+		SetTextColor(tcell.ColorRed).
 		SetDynamicColors(true).
 		SetWrap(true).
 		SetTextAlign(tview.AlignCenter)
