@@ -34,6 +34,7 @@ func (c *Client) Connect() {
 		case <-c.endCh:
 			return
 		case <-time.After(reconnectInterval):
+			//fmt.Println(c.serverAddr)
 			c.PrintStatus("Conectando...", TextBlue)
 			c.conn, err = net.Dial("tcp", c.serverAddr)
 

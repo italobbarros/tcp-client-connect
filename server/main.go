@@ -7,14 +7,14 @@ import (
 )
 
 func main() {
-	listener, err := net.Listen("tcp", ":8080")
+	listener, err := net.Listen("tcp", ":8081")
 	if err != nil {
 		log.Fatal("Erro ao iniciar o servidor:", err)
 	}
 
 	defer listener.Close()
 
-	fmt.Println("Servidor ouvindo em :8080")
+	fmt.Println("Servidor ouvindo em :8081")
 
 	for {
 		conn, err := listener.Accept()

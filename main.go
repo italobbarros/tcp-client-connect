@@ -17,6 +17,7 @@ func main() {
 		}
 		return
 	}
+	//fmt.Println(config)
 	// Verifica se a ajuda foi solicitada
 	endCh := make(chan struct{}, 1)
 	managerClients := client.ManagerClients{
@@ -33,4 +34,5 @@ func main() {
 	go gui.Create(endCh)
 	go gui.ListenServerResponse(endCh)
 	managerClients.Start(endCh)
+
 }
