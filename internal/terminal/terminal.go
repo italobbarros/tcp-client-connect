@@ -9,7 +9,7 @@ import (
 	"github.com/rivo/tview"
 )
 
-func NewTerminal(serverCommandCh chan string, userCommandCh chan string, clientIsConnected func() bool) *Terminal {
+func NewTerminal(serverCommandCh chan []byte, userCommandCh chan []byte, clientIsConnected func() bool) *Terminal {
 	return &Terminal{
 		serverCommandCh:   serverCommandCh,
 		userCommandCh:     userCommandCh,
@@ -43,7 +43,8 @@ func (t *Terminal) Create(endCh chan struct{}) {
 	}()
 	t.connection = tview.NewTextView().
 		SetDynamicColors(true).
-		SetWrap(true)
+		SetWrap(true).
+		SetTextAlign(tview.AlignCenter)
 	t.connection.SetBorder(true).SetTitle("Status").SetTitleAlign(tview.AlignLeft)
 
 	// Cria dois novos TextViews para os comandos enviados e recebidos
@@ -58,14 +59,14 @@ func (t *Terminal) Create(endCh chan struct{}) {
 
 	// Cria um novo Form para a entrada do usuário
 	t.data = tview.NewForm().
-		AddInputField("Data", "", 50, nil, nil) //.
+		AddInputField("Data", "", 100, nil, nil) //.
 	t.data.SetBorder(true).SetTitle("Send Data").SetTitleAlign(tview.AlignLeft)
 
 	t.config = tview.NewForm().
-		AddDropDown("Interval", []string{"None", "5s", "10s", "60s"}, 0, nil).
-		AddDropDown("PagesView", []string{"Default", "OnlyInput"}, 0, nil).
+		AddDropDown("Time", []string{"None", "5s", "10s", "60s"}, 0, nil).
+		AddDropDown("View", []string{"Input", "All"}, 0, nil).
 		AddButton("Save", func() {
-			_, interval := t.config.GetFormItemByLabel("Interval").(*tview.DropDown).GetCurrentOption()
+			_, interval := t.config.GetFormItemByLabel("Time").(*tview.DropDown).GetCurrentOption()
 			if interval != "None" {
 				close(t.stopCh)
 				go func() {
@@ -87,8 +88,9 @@ func (t *Terminal) Create(endCh chan struct{}) {
 							if len(command) == 0 {
 								continue
 							}
-							t.userCommandCh <- command
-							t.Print(command, t.sentCommands)
+							data := []byte(command)
+							t.userCommandCh <- data
+							t.Print(data, t.sentCommands)
 							//t.app.SetFocus(t.data.GetFormItemByLabel("Data"))
 							numberStr := strings.TrimSuffix(interval, "s")
 							v, err := strconv.Atoi(numberStr)
@@ -100,21 +102,21 @@ func (t *Terminal) Create(endCh chan struct{}) {
 					}
 				}()
 			}
-			_, pages := t.config.GetFormItemByLabel("PagesView").(*tview.DropDown).GetCurrentOption()
-			if pages == "Default" {
+			_, pages := t.config.GetFormItemByLabel("View").(*tview.DropDown).GetCurrentOption()
+			if pages == "All" {
 				if t.pages != nil {
 					t.pages.ShowPage("page_in_and_out")
 					t.pages.HidePage("page_out_only")
 				}
 			}
-			if pages == "OnlyInput" {
+			if pages == "Input" {
 				if t.pages != nil {
 					t.pages.ShowPage("page_out_only")
 					t.pages.HidePage("page_in_and_out")
 				}
 			}
 		})
-
+	t.config.SetBorder(true).SetTitle("Config").SetTitleAlign(tview.AlignLeft)
 	t.data.GetFormItemByLabel("Data").(*tview.InputField).
 		SetDoneFunc(func(key tcell.Key) {
 			if !t.clientIsConnected() {
@@ -126,8 +128,9 @@ func (t *Terminal) Create(endCh chan struct{}) {
 				if len(command) == 0 {
 					return
 				}
-				t.userCommandCh <- command
-				t.Print(command, t.sentCommands)
+				data := []byte(command)
+				t.userCommandCh <- data
+				t.Print(data, t.sentCommands)
 				t.data.GetFormItemByLabel("Data").(*tview.InputField).SetText("")
 				t.app.SetFocus(t.data.GetFormItemByLabel("Data"))
 			}
@@ -135,30 +138,26 @@ func (t *Terminal) Create(endCh chan struct{}) {
 
 	page_in_and_out := tview.NewFlex().
 		AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
-			AddItem(t.connection, 4, 1, false).
+			AddItem(t.connection, 3, 1, false).
 			AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
 				AddItem(t.sentCommands, 0, 1, false).
-				AddItem(t.receivedResponses, 0, 1, false), 0, 2, false).
-			AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
-				AddItem(t.data, 0, 1, true).
-				AddItem(t.config, 0, 1, false), 10, 1, false,
-			), 0, 1, true)
+				AddItem(t.receivedResponses, 0, 1, false).
+				AddItem(t.config, 16, 1, false), 0, 1, false).
+			AddItem(t.data, 5, 1, true), 0, 1, true)
 
 	page_out_only := tview.NewFlex().
 		AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
-			AddItem(t.connection, 4, 1, false).
+			AddItem(t.connection, 3, 1, false).
 			AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
-				AddItem(t.receivedResponses, 0, 1, false), 0, 2, false).
-			AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
-				AddItem(t.data, 0, 1, true).
-				AddItem(t.config, 0, 1, false), 10, 1, false,
-			), 0, 1, true)
+				AddItem(t.receivedResponses, 0, 1, false).
+				AddItem(t.config, 16, 1, false), 0, 1, false).
+			AddItem(t.data, 5, 1, true), 0, 1, true)
 
 	modal := t.ConfigModal(endCh)
 
 	t.pages = tview.NewPages().
-		AddPage("page_in_and_out", page_in_and_out, true, true).
-		AddPage("page_out_only", page_out_only, true, false).
+		AddPage("page_in_and_out", page_in_and_out, true, false).
+		AddPage("page_out_only", page_out_only, true, true).
 		AddPage("modal", modal, false, false)
 	// Define o flex como a raiz da aplicação
 	if err := t.app.SetRoot(t.pages, true).EnableMouse(true).Run(); err != nil {

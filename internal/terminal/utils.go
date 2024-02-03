@@ -6,8 +6,8 @@ import (
 	"github.com/rivo/tview"
 )
 
-func (i *Terminal) Print(value string, view *tview.TextView) {
-	data := time.Now().Format("2006-01-02 15:04:05") + " - " + value + "\n"
+func (i *Terminal) Print(value []byte, view *tview.TextView) {
+	data := time.Now().Format("2006-01-02 15:04:05") + " - " + string(value) + "\n"
 	view.Write([]byte(data))
 	view.ScrollToEnd()
 }
@@ -24,7 +24,7 @@ func (i *Terminal) PrintStatus(value string, color TeminalColors) {
 	}
 }
 
-func (i *Terminal) PrintInput(value string) {
+func (i *Terminal) PrintInput(value []byte) {
 	if i.sentCommands != nil {
 		i.app.QueueUpdate(func() {
 			i.Print(value, i.sentCommands)
@@ -46,4 +46,9 @@ func (i *Terminal) ClearOutput() {
 			i.receivedResponses.Clear()
 		})
 	}
+}
+
+func (i *Terminal) ClearAll() {
+	i.ClearInput()
+	//i.ClearOutput()
 }

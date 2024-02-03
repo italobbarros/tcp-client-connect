@@ -17,8 +17,8 @@ const (
 // Client represents a TCP client
 type Client struct {
 	serverAddr        string
-	ServerCommandCh   chan string
-	UserCommandCh     chan string
+	ServerCommandCh   chan []byte
+	UserCommandCh     chan []byte
 	ReconnectCh       chan struct{}
 	endCh             chan struct{}
 	reconnectAttempts int
@@ -31,8 +31,8 @@ type Client struct {
 func NewClient(serverAddr string, endCh chan struct{}) *Client {
 	return &Client{
 		serverAddr:        serverAddr,
-		ServerCommandCh:   make(chan string),
-		UserCommandCh:     make(chan string),
+		ServerCommandCh:   make(chan []byte),
+		UserCommandCh:     make(chan []byte),
 		ReconnectCh:       make(chan struct{}),
 		endCh:             endCh,
 		reconnectAttempts: 0,
@@ -96,6 +96,7 @@ func (c *Client) startRead() {
 			c.ReconnectCh = make(chan struct{})
 			c.conn.Close()
 			c.PrintStatus(c.serverAddr+" -> Desconectado!", terminal.Red)
+			c.Clear()
 			c.Connect()
 			continue
 		default:
@@ -114,7 +115,7 @@ func (c *Client) startRead() {
 			}
 			// Send server command to the channel
 			if c.ServerCommandCh != nil {
-				c.ServerCommandCh <- string(buffer)
+				c.ServerCommandCh <- buffer
 			}
 		}
 	}

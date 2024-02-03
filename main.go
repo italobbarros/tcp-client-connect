@@ -22,5 +22,5 @@ func main() {
 
 	go gui.Create(endCh)
 	go gui.ListenServerResponse(endCh)
-	myClient.Start(gui.PrintStatus, gui.ClearInput)
+	myClient.Start(gui.PrintStatus, gui.ClearAll)
 }
