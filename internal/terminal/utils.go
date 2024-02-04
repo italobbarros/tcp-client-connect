@@ -45,25 +45,25 @@ func (i *Terminal) PrintStatusInfo(value string, color TeminalColors) {
 }
 
 func (i *Terminal) PrintInput(msg tcp.DataType) {
-	if i.sentCommands != nil {
+	if i.outputView != nil {
 		i.app.QueueUpdate(func() {
-			i.Print(msg, i.sentCommands)
+			i.Print(msg, i.outputView)
 		})
 	}
 }
 
 func (i *Terminal) ClearInput() {
-	if i.sentCommands != nil {
+	if i.outputView != nil {
 		i.app.QueueUpdate(func() {
-			i.sentCommands.Clear()
+			i.outputView.Clear()
 		})
 	}
 }
 
 func (i *Terminal) ClearOutput() {
-	if i.receivedResponses != nil {
+	if i.inputView != nil {
 		i.app.QueueUpdate(func() {
-			i.receivedResponses.Clear()
+			i.inputView.Clear()
 		})
 	}
 }

@@ -16,10 +16,10 @@ func NewTerminal(managerConnections *tcp.ManagerConnections) *Terminal {
 	return &Terminal{
 		ManagerConnections: managerConnections,
 		timerCh:            make(chan struct{}),
+		loopbackCh:         make(chan struct{}),
 		StatusInfoCh:       make(chan tcp.StatusMsg),
 		StatusCh:           make(chan tcp.StatusMsg, totalConnections),
 		Input:              make(chan tcp.DataType, totalConnections),
-		Output:             make(chan tcp.DataType, totalConnections),
 	}
 }
 
@@ -66,14 +66,14 @@ func (t *Terminal) Create(endCh chan struct{}) {
 	t.connectionInfo.SetBorder(true).SetTitle("Info").SetTitleAlign(tview.AlignLeft)
 
 	// Cria dois novos TextViews para os comandos enviados e recebidos
-	t.sentCommands = tview.NewTextView().
+	t.outputView = tview.NewTextView().
 		SetDynamicColors(true).
 		SetWrap(true)
-	t.sentCommands.SetBorder(true).SetTitle("Output").SetTitleAlign(tview.AlignLeft)
-	t.receivedResponses = tview.NewTextView().
+	t.outputView.SetBorder(true).SetTitle("Output").SetTitleAlign(tview.AlignLeft)
+	t.inputView = tview.NewTextView().
 		SetDynamicColors(true).
 		SetWrap(true)
-	t.receivedResponses.SetBorder(true).SetTitle("Input").SetTitleAlign(tview.AlignLeft)
+	t.inputView.SetBorder(true).SetTitle("Input").SetTitleAlign(tview.AlignLeft)
 
 	// Cria um novo Form para a entrada do usuário
 	t.data = tview.NewForm().
@@ -110,7 +110,7 @@ func (t *Terminal) Create(endCh chan struct{}) {
 						go func() {
 							for id := range clientsId {
 								data.ConnId = id
-								t.Print(data, t.sentCommands)
+								t.Print(data, t.outputView)
 							}
 						}()
 						numberStr := strings.TrimSuffix(option, "s")
@@ -138,7 +138,27 @@ func (t *Terminal) Create(endCh chan struct{}) {
 				}
 			}
 		}).
-		AddCheckbox("Loopback", false, nil)
+		AddCheckbox("Loopback", false, func(checked bool) {
+			if checked {
+				go func() {
+					for {
+						select {
+						case <-endCh:
+							return
+						case <-t.loopbackCh:
+							return
+						default:
+							t.loopback = true
+						}
+					}
+				}()
+			} else {
+				t.closingloopback.Do(func() {
+					close(t.loopbackCh)
+				})
+				t.loopback = false
+			}
+		})
 
 	t.config.SetBorder(true).SetTitle("Config").SetTitleAlign(tview.AlignLeft)
 	t.data.GetFormItemByLabel("Data").(*tview.InputField).
@@ -157,7 +177,7 @@ func (t *Terminal) Create(endCh chan struct{}) {
 					clientsId := t.ManagerConnections.SendDataToConnections(data)
 					for id := range clientsId {
 						data.ConnId = id
-						t.Print(data, t.sentCommands)
+						t.Print(data, t.outputView)
 					}
 				}()
 				t.data.GetFormItemByLabel("Data").(*tview.InputField).SetText("")
@@ -173,8 +193,8 @@ func (t *Terminal) Create(endCh chan struct{}) {
 			AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
 				AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
 					AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
-						AddItem(t.receivedResponses, 0, 1, false).
-						AddItem(t.sentCommands, 0, 1, false), 0, 1, true).
+						AddItem(t.outputView, 0, 1, false).
+						AddItem(t.inputView, 0, 1, false), 0, 1, true).
 					AddItem(t.data, 5, 1, true), 0, 1, true).
 				AddItem(t.config, 22, 1, false), 0, 1, false), 0, 1, true)
 
@@ -185,7 +205,7 @@ func (t *Terminal) Create(endCh chan struct{}) {
 				AddItem(t.connectionInfo, 22, 1, false), 3, 1, false).
 			AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
 				AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
-					AddItem(t.receivedResponses, 0, 1, false).
+					AddItem(t.inputView, 0, 1, false).
 					AddItem(t.data, 5, 1, true), 0, 1, true).
 				AddItem(t.config, 22, 1, false), 0, 1, false), 0, 1, true)
 		//AddItem(t.data, 5, 1, true), 0, 1, true)
@@ -209,9 +229,13 @@ func (t *Terminal) ListenServerResponse(endCh chan struct{}) {
 			return
 		case response := <-t.Input:
 			// Imprime a resposta recebida
-			if t.receivedResponses != nil {
-				t.Print(response, t.receivedResponses)
+			if t.inputView != nil {
+				t.Print(response, t.inputView)
 				t.app.Draw()
+			}
+			if t.loopback {
+				t.ManagerConnections.SendDataToConnections(response)
+				go t.Print(response, t.outputView)
 			}
 		}
 	}

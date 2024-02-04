@@ -13,19 +13,22 @@ type Terminal struct {
 	StatusCh           chan tcp.StatusMsg
 	StatusInfoCh       chan tcp.StatusMsg
 	Input              chan tcp.DataType
-	Output             chan tcp.DataType
+	//Output             chan tcp.DataType
 	// Terminal
-	connection        *tview.TextView
-	connectionInfo    *tview.TextView
-	sentCommands      *tview.TextView
-	receivedResponses *tview.TextView
-	app               *tview.Application
-	data              *tview.Form
-	config            *tview.Form
-	timerCh           chan struct{}
-	closingTimer      sync.Once
-	mutex             sync.Mutex
-	pages             *tview.Pages
+	connection      *tview.TextView
+	connectionInfo  *tview.TextView
+	outputView      *tview.TextView
+	inputView       *tview.TextView
+	app             *tview.Application
+	data            *tview.Form
+	config          *tview.Form
+	timerCh         chan struct{}
+	closingTimer    sync.Once
+	loopbackCh      chan struct{}
+	loopback        bool
+	closingloopback sync.Once
+	mutex           sync.Mutex
+	pages           *tview.Pages
 }
 
 type TeminalColors int
