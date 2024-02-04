@@ -3,7 +3,6 @@ package terminal
 import (
 	"sync"
 
-	"github.com/gdamore/tcell/v2"
 	"github.com/italobbarros/tcp-client-connect/internal/tcp"
 	"github.com/rivo/tview"
 )
@@ -39,9 +38,9 @@ const (
 )
 
 // Colors é um mapa que associa valores CustomColor a tcell.Color
-var Colors = map[TeminalColors]tcell.Color{
-	Red:    tcell.ColorRed,
-	Yellow: tcell.ColorYellow,
-	Green:  tcell.ColorGreen,
-	Blue:   tcell.ColorBlue,
+var Colors = map[TeminalColors][]byte{
+	Red:    []byte("[red]"),
+	Yellow: []byte("[yellow]"),
+	Green:  []byte("[green]"),
+	Blue:   []byte("[blue]"),
 }
