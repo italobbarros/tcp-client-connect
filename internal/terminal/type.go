@@ -22,7 +22,8 @@ type Terminal struct {
 	app               *tview.Application
 	data              *tview.Form
 	config            *tview.Form
-	stopCh            chan struct{}
+	timerCh           chan struct{}
+	closingTimer      sync.Once
 	mutex             sync.Mutex
 	pages             *tview.Pages
 }

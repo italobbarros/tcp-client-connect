@@ -3,6 +3,7 @@ package terminal
 import (
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gdamore/tcell/v2"
@@ -14,7 +15,7 @@ func NewTerminal(managerConnections *tcp.ManagerConnections) *Terminal {
 	totalConnections := managerConnections.GetNumberConnections()
 	return &Terminal{
 		ManagerConnections: managerConnections,
-		stopCh:             make(chan struct{}),
+		timerCh:            make(chan struct{}),
 		StatusInfoCh:       make(chan tcp.StatusMsg),
 		StatusCh:           make(chan tcp.StatusMsg, totalConnections),
 		Input:              make(chan tcp.DataType, totalConnections),
@@ -80,62 +81,65 @@ func (t *Terminal) Create(endCh chan struct{}) {
 	t.data.SetBorder(true).SetTitle("Send Data").SetTitleAlign(tview.AlignLeft)
 
 	t.config = tview.NewForm().
-		AddDropDown("Time", []string{"None", "5s", "10s", "60s"}, 0, nil).
-		AddDropDown("View", []string{"Input", "All"}, 0, nil).
-		AddButton("Save", func() {
-			_, interval := t.config.GetFormItemByLabel("Time").(*tview.DropDown).GetCurrentOption()
-			if interval != "None" {
-				close(t.stopCh)
-				go func() {
-					time.Sleep(1 * time.Millisecond)
-					t.stopCh = make(chan struct{})
-					var interValue int = 0
-					for {
-						select {
-						case <-endCh:
-							return
-						case <-t.stopCh:
-							return
-						case <-time.After(time.Duration(interValue) * time.Second):
-							command := t.data.GetFormItemByLabel("Data").(*tview.InputField).GetText()
-							if len(command) == 0 {
-								continue
-							}
-							data := tcp.DataType{
-								Data:   []byte(command),
-								ConnId: 0,
-							}
-							clientsId := t.ManagerConnections.SendDataToConnections(data)
-							go func() {
-								for id := range clientsId {
-									data.ConnId = id
-									t.Print(data, t.sentCommands)
-								}
-							}()
-							numberStr := strings.TrimSuffix(interval, "s")
-							v, err := strconv.Atoi(numberStr)
-							if err != nil {
-								return
-							}
-							interValue = v
-						}
-					}
-				}()
+		AddDropDown("Time", []string{"None", "5s", "10s", "60s"}, 0, func(option string, optionIndex int) {
+			t.CloseTimer()
+			if option == "None" {
+				return
 			}
-			_, pages := t.config.GetFormItemByLabel("View").(*tview.DropDown).GetCurrentOption()
-			if pages == "All" {
+			go func() {
+				time.Sleep(1 * time.Millisecond)
+				t.timerCh = make(chan struct{})
+				t.closingTimer = sync.Once{}
+				var interValue int = 0
+				for {
+					select {
+					case <-endCh:
+						return
+					case <-t.timerCh:
+						return
+					case <-time.After(time.Duration(interValue) * time.Second):
+						command := t.data.GetFormItemByLabel("Data").(*tview.InputField).GetText()
+						if len(command) == 0 {
+							continue
+						}
+						data := tcp.DataType{
+							Data:   []byte(command),
+							ConnId: 0,
+						}
+						clientsId := t.ManagerConnections.SendDataToConnections(data)
+						go func() {
+							for id := range clientsId {
+								data.ConnId = id
+								t.Print(data, t.sentCommands)
+							}
+						}()
+						numberStr := strings.TrimSuffix(option, "s")
+						v, err := strconv.Atoi(numberStr)
+						if err != nil {
+							return
+						}
+						interValue = v
+					}
+				}
+			}()
+
+		}).
+		AddDropDown("View", []string{"Input", "All"}, 0, func(option string, optionIndex int) {
+			if option == "All" {
 				if t.pages != nil {
 					t.pages.ShowPage("page_in_and_out")
 					t.pages.HidePage("page_out_only")
 				}
 			}
-			if pages == "Input" {
+			if option == "Input" {
 				if t.pages != nil {
 					t.pages.ShowPage("page_out_only")
 					t.pages.HidePage("page_in_and_out")
 				}
 			}
-		})
+		}).
+		AddCheckbox("Loopback", false, nil)
+
 	t.config.SetBorder(true).SetTitle("Config").SetTitleAlign(tview.AlignLeft)
 	t.data.GetFormItemByLabel("Data").(*tview.InputField).
 		SetDoneFunc(func(key tcell.Key) {
@@ -167,10 +171,12 @@ func (t *Terminal) Create(endCh chan struct{}) {
 				AddItem(t.connection, 0, 1, false).
 				AddItem(t.connectionInfo, 22, 1, false), 3, 1, false).
 			AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
-				AddItem(t.sentCommands, 0, 1, false).
-				AddItem(t.receivedResponses, 0, 1, false).
-				AddItem(t.config, 22, 1, false), 0, 1, false).
-			AddItem(t.data, 5, 1, true), 0, 1, true)
+				AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
+					AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
+						AddItem(t.receivedResponses, 0, 1, false).
+						AddItem(t.sentCommands, 0, 1, false), 0, 1, true).
+					AddItem(t.data, 5, 1, true), 0, 1, true).
+				AddItem(t.config, 22, 1, false), 0, 1, false), 0, 1, true)
 
 	page_out_only := tview.NewFlex().
 		AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
@@ -178,9 +184,11 @@ func (t *Terminal) Create(endCh chan struct{}) {
 				AddItem(t.connection, 0, 1, false).
 				AddItem(t.connectionInfo, 22, 1, false), 3, 1, false).
 			AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
-				AddItem(t.receivedResponses, 0, 1, false).
-				AddItem(t.config, 22, 1, false), 0, 1, false).
-			AddItem(t.data, 5, 1, true), 0, 1, true)
+				AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
+					AddItem(t.receivedResponses, 0, 1, false).
+					AddItem(t.data, 5, 1, true), 0, 1, true).
+				AddItem(t.config, 22, 1, false), 0, 1, false), 0, 1, true)
+		//AddItem(t.data, 5, 1, true), 0, 1, true)
 
 	modal := t.ConfigModal(endCh)
 
@@ -207,6 +215,12 @@ func (t *Terminal) ListenServerResponse(endCh chan struct{}) {
 			}
 		}
 	}
+}
+
+func (t *Terminal) CloseTimer() {
+	t.closingTimer.Do(func() {
+		close(t.timerCh)
+	})
 }
 
 func (t *Terminal) ConfigModal(endCh chan struct{}) tview.Primitive {

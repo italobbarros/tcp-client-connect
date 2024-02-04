@@ -8,8 +8,9 @@ import (
 
 const (
 	maxReconnectAttempts = 100
-	reconnectInterval    = 2 * time.Second
 )
+
+var reconnectInterval = 1 * time.Second
 
 // Connection represents a TCP client
 
@@ -43,6 +44,7 @@ func (c *Connection) Connect() {
 				c.reconnectAttempts, reconnectInterval)
 			c.PrintStatus(msg, TextRed)
 			c.reconnectAttempts++
+			reconnectInterval = 5 * time.Second
 			if err != nil {
 				continue
 			}
