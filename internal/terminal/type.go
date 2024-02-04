@@ -15,20 +15,18 @@ type Terminal struct {
 	Input              chan tcp.DataType
 	//Output             chan tcp.DataType
 	// Terminal
-	connection      *tview.TextView
-	connectionInfo  *tview.TextView
-	outputView      *tview.TextView
-	inputView       *tview.TextView
-	app             *tview.Application
-	data            *tview.Form
-	config          *tview.Form
-	timerCh         chan struct{}
-	closingTimer    sync.Once
-	loopbackCh      chan struct{}
-	loopback        bool
-	closingloopback sync.Once
-	mutex           sync.Mutex
-	pages           *tview.Pages
+	connection     *tview.TextView
+	connectionInfo *tview.TextView
+	outputView     *tview.TextView
+	inputView      *tview.TextView
+	app            *tview.Application
+	data           *tview.Form
+	config         *tview.Form
+	timerCh        chan struct{}
+	closingTimer   sync.Once
+	loopback       bool
+	mutex          sync.Mutex
+	pages          *tview.Pages
 }
 
 type TeminalColors int

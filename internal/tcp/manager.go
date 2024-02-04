@@ -99,7 +99,7 @@ func (m *ManagerConnections) PrintStatusInfo() {
 		color = TextGreen
 	}
 	m.StatusInfoCh <- StatusMsg{
-		Msg:   fmt.Sprintf("T:%d | A:%d | D:%d", total, actives, deactives),
+		Msg:   fmt.Sprintf("T:%d | C:%d | D:%d", total, actives, deactives),
 		Color: color,
 	}
 }

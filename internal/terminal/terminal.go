@@ -16,10 +16,10 @@ func NewTerminal(managerConnections *tcp.ManagerConnections) *Terminal {
 	return &Terminal{
 		ManagerConnections: managerConnections,
 		timerCh:            make(chan struct{}),
-		loopbackCh:         make(chan struct{}),
 		StatusInfoCh:       make(chan tcp.StatusMsg),
 		StatusCh:           make(chan tcp.StatusMsg, totalConnections),
 		Input:              make(chan tcp.DataType, totalConnections),
+		loopback:           false,
 	}
 }
 
@@ -39,40 +39,33 @@ func (t *Terminal) Create(endCh chan struct{}) {
 			}
 		}
 	}()
-	go func() {
-		for {
-			select {
-			case <-endCh:
-				return
-			case <-time.After(time.Duration(5) * time.Minute):
-				t.ClearInput()
-				t.ClearOutput()
-				t.ClearStatusConn()
-			}
-		}
-	}()
 	t.connection = tview.NewTextView().
 		SetText("Desconectado!").
 		SetTextColor(tcell.ColorRed).
 		SetDynamicColors(true).
 		SetWrap(true).
-		SetTextAlign(tview.AlignCenter)
+		SetTextAlign(tview.AlignCenter).Clear().
+		SetDoneFunc(func(key tcell.Key) {
+			if key == tcell.KeyEnter {
+				t.pages.ShowPage("StatusConnection")
+			}
+		}).SetToggleHighlights(true).SetMaxLines(100)
 	t.connection.SetBorder(true).SetTitle("Status").SetTitleAlign(tview.AlignLeft)
 
 	t.connectionInfo = tview.NewTextView().
 		SetDynamicColors(true).
 		SetWrap(true).
-		SetTextAlign(tview.AlignCenter)
+		SetTextAlign(tview.AlignCenter).SetMaxLines(1)
 	t.connectionInfo.SetBorder(true).SetTitle("Info").SetTitleAlign(tview.AlignLeft)
 
 	// Cria dois novos TextViews para os comandos enviados e recebidos
 	t.outputView = tview.NewTextView().
 		SetDynamicColors(true).
-		SetWrap(true)
+		SetWrap(true).SetMaxLines(100)
 	t.outputView.SetBorder(true).SetTitle("Output").SetTitleAlign(tview.AlignLeft)
 	t.inputView = tview.NewTextView().
 		SetDynamicColors(true).
-		SetWrap(true)
+		SetWrap(true).SetMaxLines(100)
 	t.inputView.SetBorder(true).SetTitle("Input").SetTitleAlign(tview.AlignLeft)
 
 	// Cria um novo Form para a entrada do usuário
@@ -128,34 +121,20 @@ func (t *Terminal) Create(endCh chan struct{}) {
 			if option == "All" {
 				if t.pages != nil {
 					t.pages.ShowPage("page_in_and_out")
-					t.pages.HidePage("page_out_only")
+					t.pages.HidePage("page_in_only")
 				}
 			}
 			if option == "Input" {
 				if t.pages != nil {
-					t.pages.ShowPage("page_out_only")
+					t.pages.ShowPage("page_in_only")
 					t.pages.HidePage("page_in_and_out")
 				}
 			}
 		}).
 		AddCheckbox("Loopback", false, func(checked bool) {
 			if checked {
-				go func() {
-					for {
-						select {
-						case <-endCh:
-							return
-						case <-t.loopbackCh:
-							return
-						default:
-							t.loopback = true
-						}
-					}
-				}()
+				t.loopback = true
 			} else {
-				t.closingloopback.Do(func() {
-					close(t.loopbackCh)
-				})
 				t.loopback = false
 			}
 		})
@@ -198,7 +177,7 @@ func (t *Terminal) Create(endCh chan struct{}) {
 					AddItem(t.data, 5, 1, true), 0, 1, true).
 				AddItem(t.config, 22, 1, false), 0, 1, false), 0, 1, true)
 
-	page_out_only := tview.NewFlex().
+	page_in_only := tview.NewFlex().
 		AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
 			AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
 				AddItem(t.connection, 0, 1, false).
@@ -210,12 +189,14 @@ func (t *Terminal) Create(endCh chan struct{}) {
 				AddItem(t.config, 22, 1, false), 0, 1, false), 0, 1, true)
 		//AddItem(t.data, 5, 1, true), 0, 1, true)
 
-	modal := t.ConfigModal(endCh)
+	modalPage := t.ConfigModal(endCh)
+	StatusConnectionPage := t.ExpandingStatusModal()
 
 	t.pages = tview.NewPages().
 		AddPage("page_in_and_out", page_in_and_out, true, false).
-		AddPage("page_out_only", page_out_only, true, true).
-		AddPage("modal", modal, false, false)
+		AddPage("page_in_only", page_in_only, true, true).
+		AddPage("modal", modalPage, false, false).
+		AddPage("StatusConnection", StatusConnectionPage, true, false)
 	// Define o flex como a raiz da aplicação
 	if err := t.app.SetRoot(t.pages, true).EnableMouse(true).Run(); err != nil {
 		panic(err)
@@ -234,8 +215,12 @@ func (t *Terminal) ListenServerResponse(endCh chan struct{}) {
 				t.app.Draw()
 			}
 			if t.loopback {
+				if len(response.Data) == 0 {
+					continue
+				}
 				t.ManagerConnections.SendDataToConnections(response)
 				go t.Print(response, t.outputView)
+				time.Sleep(time.Microsecond * 1)
 			}
 		}
 	}
@@ -247,16 +232,19 @@ func (t *Terminal) CloseTimer() {
 	})
 }
 
-func (t *Terminal) ConfigModal(endCh chan struct{}) tview.Primitive {
-	flexModal := func(p tview.Primitive, width, height int) tview.Primitive {
-		return tview.NewFlex().
+func (t *Terminal) FlexModalPrimitive(p tview.Primitive, width, height int) tview.Primitive {
+	return tview.NewFlex().
+		AddItem(nil, 0, 1, false).
+		AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
 			AddItem(nil, 0, 1, false).
-			AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
-				AddItem(nil, 0, 1, false).
-				AddItem(p, height, 1, true).
-				AddItem(nil, 0, 1, false), width, 1, true).
-			AddItem(nil, 0, 1, false)
-	}
+			AddItem(p, height, 1, true).
+			AddItem(nil, 0, 1, false), width, 1, true).
+		AddItem(nil, 0, 1, false)
+
+}
+
+func (t *Terminal) ConfigModal(endCh chan struct{}) tview.Primitive {
+
 	modalBase := tview.NewModal().
 		SetText("Do you want to quit the application?").
 		AddButtons([]string{"Quit", "Cancel"}).
@@ -284,5 +272,16 @@ func (t *Terminal) ConfigModal(endCh chan struct{}) tview.Primitive {
 		return event
 	})
 
-	return flexModal(modalBase, 10, 10)
+	return t.FlexModalPrimitive(modalBase, 10, 10)
+}
+
+func (t *Terminal) ExpandingStatusModal() tview.Primitive {
+	statusFlex := tview.NewFlex().
+		AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
+			AddItem(t.connection.SetTextAlign(tview.AlignLeft), 0, 1, false).
+			AddItem(tview.NewButton("Exit").SetLabelColor(tcell.ColorRed).
+				SetSelectedFunc(func() {
+					t.pages.HidePage("StatusConnection")
+				}), 3, 1, true), 0, 1, true)
+	return statusFlex
 }
