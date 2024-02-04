@@ -11,12 +11,14 @@ import (
 )
 
 func NewTerminal(managerConnections *tcp.ManagerConnections) *Terminal {
+	totalConnections := managerConnections.GetNumberConnections()
 	return &Terminal{
 		ManagerConnections: managerConnections,
 		stopCh:             make(chan struct{}),
-		StatusCh:           make(chan tcp.StatusMsg, managerConnections.GetNumberConnections()),
-		Input:              make(chan tcp.DataType, managerConnections.GetNumberConnections()),
-		Output:             make(chan tcp.DataType, managerConnections.GetNumberConnections()),
+		StatusInfoCh:       make(chan tcp.StatusMsg),
+		StatusCh:           make(chan tcp.StatusMsg, totalConnections),
+		Input:              make(chan tcp.DataType, totalConnections),
+		Output:             make(chan tcp.DataType, totalConnections),
 	}
 }
 
@@ -28,7 +30,9 @@ func (t *Terminal) Create(endCh chan struct{}) {
 			case <-endCh:
 				t.app.Stop()
 			case stats := <-t.StatusCh:
-				t.PrintStatus(stats.Msg, TeminalColors(stats.Color))
+				t.PrintStatusConn(stats.Msg, TeminalColors(stats.Color))
+			case stats := <-t.StatusInfoCh:
+				t.PrintStatusInfo(stats.Msg, TeminalColors(stats.Color))
 			case <-time.After(time.Duration(1) * time.Second):
 				t.app.Draw()
 			}
@@ -42,6 +46,7 @@ func (t *Terminal) Create(endCh chan struct{}) {
 			case <-time.After(time.Duration(5) * time.Minute):
 				t.ClearInput()
 				t.ClearOutput()
+				t.ClearStatusConn()
 			}
 		}
 	}()
@@ -52,6 +57,12 @@ func (t *Terminal) Create(endCh chan struct{}) {
 		SetWrap(true).
 		SetTextAlign(tview.AlignCenter)
 	t.connection.SetBorder(true).SetTitle("Status").SetTitleAlign(tview.AlignLeft)
+
+	t.connectionInfo = tview.NewTextView().
+		SetDynamicColors(true).
+		SetWrap(true).
+		SetTextAlign(tview.AlignCenter)
+	t.connectionInfo.SetBorder(true).SetTitle("Info").SetTitleAlign(tview.AlignLeft)
 
 	// Cria dois novos TextViews para os comandos enviados e recebidos
 	t.sentCommands = tview.NewTextView().
@@ -152,19 +163,23 @@ func (t *Terminal) Create(endCh chan struct{}) {
 
 	page_in_and_out := tview.NewFlex().
 		AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
-			AddItem(t.connection, 3, 1, false).
+			AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
+				AddItem(t.connection, 0, 1, false).
+				AddItem(t.connectionInfo, 22, 1, false), 4, 1, false).
 			AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
 				AddItem(t.sentCommands, 0, 1, false).
 				AddItem(t.receivedResponses, 0, 1, false).
-				AddItem(t.config, 16, 1, false), 0, 1, false).
+				AddItem(t.config, 22, 1, false), 0, 1, false).
 			AddItem(t.data, 5, 1, true), 0, 1, true)
 
 	page_out_only := tview.NewFlex().
 		AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
-			AddItem(t.connection, 3, 1, false).
+			AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
+				AddItem(t.connection, 0, 1, false).
+				AddItem(t.connectionInfo, 22, 1, false), 4, 1, false).
 			AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
 				AddItem(t.receivedResponses, 0, 1, false).
-				AddItem(t.config, 16, 1, false), 0, 1, false).
+				AddItem(t.config, 22, 1, false), 0, 1, false).
 			AddItem(t.data, 5, 1, true), 0, 1, true)
 
 	modal := t.ConfigModal(endCh)

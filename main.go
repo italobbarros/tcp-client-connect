@@ -23,7 +23,7 @@ func main() {
 	managerConnections := tcp.NewManagerConnection(config.Addr, endCh)
 
 	gui := terminal.NewTerminal(managerConnections)
-	managerConnections.ReceiveDataToConnections(gui.Input, gui.StatusCh)
+	managerConnections.ReceiveDataToConnections(gui.Input, gui.StatusCh, gui.StatusInfoCh)
 	go gui.Create(endCh)
 	go gui.ListenServerResponse(endCh)
 	managerConnections.Start(endCh)

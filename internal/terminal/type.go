@@ -11,10 +11,12 @@ import (
 type Terminal struct {
 	ManagerConnections *tcp.ManagerConnections
 	StatusCh           chan tcp.StatusMsg
+	StatusInfoCh       chan tcp.StatusMsg
 	Input              chan tcp.DataType
 	Output             chan tcp.DataType
 	// Terminal
 	connection        *tview.TextView
+	connectionInfo    *tview.TextView
 	sentCommands      *tview.TextView
 	receivedResponses *tview.TextView
 	app               *tview.Application

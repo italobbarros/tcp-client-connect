@@ -15,11 +15,14 @@ type Connection struct {
 	endCh             chan struct{}
 	reconnectAttempts int
 	conn              net.Conn
+	manager           *ManagerConnections
 }
 
 type ManagerConnections struct {
-	Map   map[int]*Connection
-	mutex sync.Mutex
+	StatusInfoCh      chan StatusMsg
+	MapConnections    map[int]*Connection
+	mutexConnections  sync.Mutex
+	activeConnections int
 }
 
 type StatusMsg struct {
