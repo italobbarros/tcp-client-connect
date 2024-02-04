@@ -1,4 +1,15 @@
-package client
+package tcp
+
+func NewManagerConnection(AddrList []string, endCh chan struct{}) *ManagerConnections {
+	m := ManagerConnections{
+		Map: make(map[int]*Connection),
+	}
+	for i, addr := range AddrList {
+		myClient := NewConnection(i, addr, endCh)
+		m.AddConnections(i, myClient)
+	}
+	return &m
+}
 
 func (m *ManagerConnections) AddConnections(index int, client *Connection) {
 	m.mutex.Lock()

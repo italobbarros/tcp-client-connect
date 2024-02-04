@@ -6,17 +6,17 @@ import (
 	"time"
 
 	"github.com/gdamore/tcell/v2"
-	"github.com/italobbarros/tcp-client-connect/internal/client"
+	"github.com/italobbarros/tcp-client-connect/internal/tcp"
 	"github.com/rivo/tview"
 )
 
-func NewTerminal(managerConnections *client.ManagerConnections) *Terminal {
+func NewTerminal(managerConnections *tcp.ManagerConnections) *Terminal {
 	return &Terminal{
 		ManagerConnections: managerConnections,
 		stopCh:             make(chan struct{}),
-		StatusCh:           make(chan client.StatusMsg, managerConnections.GetNumberConnections()),
-		Input:              make(chan client.DataType, managerConnections.GetNumberConnections()),
-		Output:             make(chan client.DataType, managerConnections.GetNumberConnections()),
+		StatusCh:           make(chan tcp.StatusMsg, managerConnections.GetNumberConnections()),
+		Input:              make(chan tcp.DataType, managerConnections.GetNumberConnections()),
+		Output:             make(chan tcp.DataType, managerConnections.GetNumberConnections()),
 	}
 }
 
@@ -90,7 +90,7 @@ func (t *Terminal) Create(endCh chan struct{}) {
 							if len(command) == 0 {
 								continue
 							}
-							data := client.DataType{
+							data := tcp.DataType{
 								Data:   []byte(command),
 								ConnId: 0,
 							}
@@ -134,7 +134,7 @@ func (t *Terminal) Create(endCh chan struct{}) {
 				if len(command) == 0 {
 					return
 				}
-				data := client.DataType{
+				data := tcp.DataType{
 					Data:   []byte(command),
 					ConnId: 0,
 				}

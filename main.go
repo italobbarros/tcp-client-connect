@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/italobbarros/tcp-client-connect/internal/arg"
-	"github.com/italobbarros/tcp-client-connect/internal/client"
+	"github.com/italobbarros/tcp-client-connect/internal/tcp"
 	terminal "github.com/italobbarros/tcp-client-connect/internal/terminal"
 )
 
@@ -20,19 +20,12 @@ func main() {
 	//fmt.Println(config)
 	// Verifica se a ajuda foi solicitada
 	endCh := make(chan struct{}, 1)
-	managerClients := client.ManagerConnections{
-		Map: make(map[int]*client.Connection),
-	}
+	managerConnections := tcp.NewManagerConnection(config.Addr, endCh)
 
-	for i, addr := range config.Addr {
-		myClient := client.NewConnection(i, addr, endCh)
-		managerClients.AddConnections(i, myClient)
-	}
-
-	gui := terminal.NewTerminal(&managerClients)
-	managerClients.ReceiveDataToConnections(gui.Input, gui.StatusCh)
+	gui := terminal.NewTerminal(managerConnections)
+	managerConnections.ReceiveDataToConnections(gui.Input, gui.StatusCh)
 	go gui.Create(endCh)
 	go gui.ListenServerResponse(endCh)
-	managerClients.Start(endCh)
+	managerConnections.Start(endCh)
 
 }
