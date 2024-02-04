@@ -1,35 +1,35 @@
 package client
 
-func (m *ManagerClients) AddClients(index int, client *Client) {
+func (m *ManagerConnections) AddConnections(index int, client *Connection) {
 	m.mutex.Lock()
 	m.Map[index] = client
 	m.mutex.Unlock()
 }
 
-func (m *ManagerClients) GetNumberClients() int {
+func (m *ManagerConnections) GetNumberConnections() int {
 	m.mutex.Lock()
 	number := len(m.Map)
 	m.mutex.Unlock()
 	return number
 }
 
-func (m *ManagerClients) SendDataToClients(data DataType) []int {
+func (m *ManagerConnections) SendDataToConnections(data DataType) []int {
 	m.mutex.Lock()
 	var clientIds []int
 	for _, client := range m.Map {
-		data.ConnId = client.ClientId
-		clientIds = append(clientIds, client.ClientId)
+		data.ConnId = client.Id
+		clientIds = append(clientIds, client.Id)
 		client.OutputData <- data
 	}
 	m.mutex.Unlock()
 	return clientIds
 }
 
-func (m *ManagerClients) ReceiveDataToClients(received chan DataType, StatusCh chan StatusMsg) {
+func (m *ManagerConnections) ReceiveDataToConnections(received chan DataType, StatusCh chan StatusMsg) {
 	m.mutex.Lock()
 	for _, client := range m.Map {
 		client.StatusCh = StatusCh
-		go func(c *Client) {
+		go func(c *Connection) {
 			for {
 				select {
 				case <-c.endCh:
@@ -43,7 +43,7 @@ func (m *ManagerClients) ReceiveDataToClients(received chan DataType, StatusCh c
 	m.mutex.Unlock()
 }
 
-func (m *ManagerClients) Start(endCh chan struct{}) {
+func (m *ManagerConnections) Start(endCh chan struct{}) {
 	m.mutex.Lock()
 	for _, client := range m.Map {
 		go client.Start()

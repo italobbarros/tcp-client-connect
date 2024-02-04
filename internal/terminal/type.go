@@ -9,10 +9,10 @@ import (
 )
 
 type Terminal struct {
-	managerClient *client.ManagerClients
-	StatusCh      chan client.StatusMsg
-	Input         chan client.DataType
-	Output        chan client.DataType
+	ManagerConnections *client.ManagerConnections
+	StatusCh           chan client.StatusMsg
+	Input              chan client.DataType
+	Output             chan client.DataType
 	// Terminal
 	connection        *tview.TextView
 	sentCommands      *tview.TextView

@@ -20,17 +20,17 @@ func main() {
 	//fmt.Println(config)
 	// Verifica se a ajuda foi solicitada
 	endCh := make(chan struct{}, 1)
-	managerClients := client.ManagerClients{
-		Map: make(map[int]*client.Client),
+	managerClients := client.ManagerConnections{
+		Map: make(map[int]*client.Connection),
 	}
 
 	for i, addr := range config.Addr {
-		myClient := client.NewClient(i, addr, endCh)
-		managerClients.AddClients(i, myClient)
+		myClient := client.NewConnection(i, addr, endCh)
+		managerClients.AddConnections(i, myClient)
 	}
 
 	gui := terminal.NewTerminal(&managerClients)
-	managerClients.ReceiveDataToClients(gui.Input, gui.StatusCh)
+	managerClients.ReceiveDataToConnections(gui.Input, gui.StatusCh)
 	go gui.Create(endCh)
 	go gui.ListenServerResponse(endCh)
 	managerClients.Start(endCh)

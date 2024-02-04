@@ -5,8 +5,8 @@ import (
 	"sync"
 )
 
-type Client struct {
-	ClientId          int
+type Connection struct {
+	Id                int
 	serverAddr        string
 	InputData         chan DataType
 	OutputData        chan DataType
@@ -17,8 +17,8 @@ type Client struct {
 	conn              net.Conn
 }
 
-type ManagerClients struct {
-	Map   map[int]*Client
+type ManagerConnections struct {
+	Map   map[int]*Connection
 	mutex sync.Mutex
 }
 

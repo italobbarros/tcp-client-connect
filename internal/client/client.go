@@ -11,12 +11,12 @@ const (
 	reconnectInterval    = 2 * time.Second
 )
 
-// Client represents a TCP client
+// Connection represents a TCP client
 
-// NewClient initializes a new instance of the Client
-func NewClient(i int, serverAddr string, endCh chan struct{}) *Client {
-	return &Client{
-		ClientId:          i,
+// NewConnection initializes a new instance of the Connection
+func NewConnection(i int, serverAddr string, endCh chan struct{}) *Connection {
+	return &Connection{
+		Id:                i,
 		serverAddr:        serverAddr,
 		InputData:         make(chan DataType),
 		OutputData:        make(chan DataType),
@@ -27,7 +27,7 @@ func NewClient(i int, serverAddr string, endCh chan struct{}) *Client {
 }
 
 // Start initiates the client
-func (c *Client) Connect() {
+func (c *Connection) Connect() {
 	var err error
 	for {
 		select {
@@ -54,8 +54,8 @@ func (c *Client) Connect() {
 	}
 }
 
-func (c *Client) Start() {
-	fmt.Println("Starting clientid ", c.ClientId)
+func (c *Connection) Start() {
+	fmt.Println("Starting clientid ", c.Id)
 	go c.Connect()
 	go c.startRead()
 	go c.startWrite()
@@ -67,13 +67,13 @@ func (c *Client) Start() {
 	}()
 }
 
-func (c *Client) Stop() {
+func (c *Connection) Stop() {
 	close(c.InputData)
 	close(c.OutputData)
 	close(c.ReconnectCh)
 }
 
-func (c *Client) startRead() {
+func (c *Connection) startRead() {
 	for {
 		select {
 		case <-c.endCh:
@@ -102,18 +102,18 @@ func (c *Client) startRead() {
 			if c.InputData != nil {
 				c.InputData <- DataType{
 					Data:   buffer,
-					ConnId: c.ClientId,
+					ConnId: c.Id,
 				}
 			}
 		}
 	}
 }
 
-func (c *Client) IsConnected() bool {
+func (c *Connection) IsConnected() bool {
 	return c.reconnectAttempts == 0
 }
 
-func (c *Client) startWrite() {
+func (c *Connection) startWrite() {
 	for {
 		select {
 		case <-c.endCh:
@@ -137,9 +137,9 @@ func (c *Client) startWrite() {
 	}
 }
 
-func (c *Client) PrintStatus(value string, color TextColors) {
+func (c *Connection) PrintStatus(value string, color TextColors) {
 	c.StatusCh <- StatusMsg{
-		Msg:   fmt.Sprintf("[%s](Client%d) -> %s", c.serverAddr, c.ClientId, value),
+		Msg:   fmt.Sprintf("[%s](Connection%d) -> %s", c.serverAddr, c.Id, value),
 		Color: color,
 	}
 }

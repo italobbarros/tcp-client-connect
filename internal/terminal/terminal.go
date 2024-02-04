@@ -10,13 +10,13 @@ import (
 	"github.com/rivo/tview"
 )
 
-func NewTerminal(managerClient *client.ManagerClients) *Terminal {
+func NewTerminal(managerConnections *client.ManagerConnections) *Terminal {
 	return &Terminal{
-		managerClient: managerClient,
-		stopCh:        make(chan struct{}),
-		StatusCh:      make(chan client.StatusMsg, managerClient.GetNumberClients()),
-		Input:         make(chan client.DataType, managerClient.GetNumberClients()),
-		Output:        make(chan client.DataType, managerClient.GetNumberClients()),
+		ManagerConnections: managerConnections,
+		stopCh:             make(chan struct{}),
+		StatusCh:           make(chan client.StatusMsg, managerConnections.GetNumberConnections()),
+		Input:              make(chan client.DataType, managerConnections.GetNumberConnections()),
+		Output:             make(chan client.DataType, managerConnections.GetNumberConnections()),
 	}
 }
 
@@ -94,7 +94,7 @@ func (t *Terminal) Create(endCh chan struct{}) {
 								Data:   []byte(command),
 								ConnId: 0,
 							}
-							clientsId := t.managerClient.SendDataToClients(data)
+							clientsId := t.ManagerConnections.SendDataToConnections(data)
 							go func() {
 								for id := range clientsId {
 									data.ConnId = id
@@ -138,7 +138,7 @@ func (t *Terminal) Create(endCh chan struct{}) {
 					Data:   []byte(command),
 					ConnId: 0,
 				}
-				clientsId := t.managerClient.SendDataToClients(data)
+				clientsId := t.ManagerConnections.SendDataToConnections(data)
 				go func() {
 					for id := range clientsId {
 						data.ConnId = id
