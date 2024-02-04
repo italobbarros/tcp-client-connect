@@ -17,7 +17,6 @@ func (i *Terminal) Print(msg tcp.DataType, view *tview.TextView) {
 func (i *Terminal) PrintStatusConn(value string, color TeminalColors) {
 	if i.connection != nil {
 		i.app.QueueUpdate(func() {
-			//i.connection.Clear()
 			i.connection.Write([]byte(value))
 			i.connection.SetTextColor(Colors[color])
 			i.connection.ScrollToEnd()

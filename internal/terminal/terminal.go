@@ -50,6 +50,7 @@ func (t *Terminal) Create(endCh chan struct{}) {
 				t.pages.ShowPage("StatusConnection")
 			}
 		}).SetToggleHighlights(true).SetMaxLines(100)
+
 	t.connection.SetBorder(true).SetTitle("Status").SetTitleAlign(tview.AlignLeft)
 
 	t.connectionInfo = tview.NewTextView().

@@ -43,6 +43,9 @@ func handleConnection(conn net.Conn) {
 
 		data := buffer[:n]
 		fmt.Printf("Dados recebidos de %s: %s\n", conn.RemoteAddr(), data)
+		if len(data) == 0 {
+			continue
+		}
 		n, err = conn.Write(data)
 		if err != nil {
 			log.Printf("Erro ao ler dados da conexão %s: %v\n", conn.RemoteAddr(), err)
