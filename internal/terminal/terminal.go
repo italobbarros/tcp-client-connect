@@ -138,8 +138,8 @@ func (t *Terminal) Create(endCh chan struct{}) {
 					Data:   []byte(command),
 					ConnId: 0,
 				}
-				clientsId := t.ManagerConnections.SendDataToConnections(data)
 				go func() {
+					clientsId := t.ManagerConnections.SendDataToConnections(data)
 					for id := range clientsId {
 						data.ConnId = id
 						t.Print(data, t.sentCommands)

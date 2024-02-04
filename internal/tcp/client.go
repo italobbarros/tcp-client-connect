@@ -62,14 +62,14 @@ func (c *Connection) Start() {
 	go func() {
 		select {
 		case <-c.endCh:
+			close(c.InputData)
+			close(c.OutputData)
 			c.Stop()
 		}
 	}()
 }
 
 func (c *Connection) Stop() {
-	close(c.InputData)
-	close(c.OutputData)
 	close(c.ReconnectCh)
 }
 
@@ -85,7 +85,7 @@ func (c *Connection) startRead() {
 			c.Connect()
 			continue
 		default:
-			if c.reconnectAttempts != 0 {
+			if !c.IsConnected() {
 				continue
 			}
 			if c.conn == nil {
@@ -128,6 +128,9 @@ func (c *Connection) startWrite() {
 				continue
 			}
 			data := <-c.OutputData
+			if !c.IsConnected() {
+				continue
+			}
 			_, err := c.conn.Write(data.Data)
 			if err != nil {
 				c.PrintStatus(err.Error(), TextRed)

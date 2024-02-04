@@ -30,6 +30,9 @@ func (m *ManagerConnections) SendDataToConnections(data DataType) []int {
 	for _, client := range m.Map {
 		data.ConnId = client.Id
 		clientIds = append(clientIds, client.Id)
+		if !client.IsConnected() {
+			continue
+		}
 		client.OutputData <- data
 	}
 	m.mutex.Unlock()
