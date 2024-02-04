@@ -145,7 +145,7 @@ func (c *Connection) startWrite() {
 
 func (c *Connection) PrintStatus(value string, color TextColors) {
 	c.StatusCh <- StatusMsg{
-		Msg:   fmt.Sprintf("[%s](%s - Conn%d): %s", time.Now().Format("2006-01-02 15:04:05"), c.serverAddr, c.Id, value),
+		Msg:   fmt.Sprintf("\n[%s](%s - Conn%d): %s", time.Now().Format("2006-01-02 15:04:05"), c.serverAddr, c.Id, value),
 		Color: color,
 	}
 }

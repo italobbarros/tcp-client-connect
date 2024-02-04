@@ -165,7 +165,7 @@ func (t *Terminal) Create(endCh chan struct{}) {
 		AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
 			AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
 				AddItem(t.connection, 0, 1, false).
-				AddItem(t.connectionInfo, 22, 1, false), 4, 1, false).
+				AddItem(t.connectionInfo, 22, 1, false), 3, 1, false).
 			AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
 				AddItem(t.sentCommands, 0, 1, false).
 				AddItem(t.receivedResponses, 0, 1, false).
@@ -176,7 +176,7 @@ func (t *Terminal) Create(endCh chan struct{}) {
 		AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
 			AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
 				AddItem(t.connection, 0, 1, false).
-				AddItem(t.connectionInfo, 22, 1, false), 4, 1, false).
+				AddItem(t.connectionInfo, 22, 1, false), 3, 1, false).
 			AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
 				AddItem(t.receivedResponses, 0, 1, false).
 				AddItem(t.config, 22, 1, false), 0, 1, false).
