@@ -59,7 +59,7 @@ func (c *Connection) Connect() {
 }
 
 func (c *Connection) Start() {
-	fmt.Println("Starting clientid ", c.Id)
+	//fmt.Println("Starting clientid ", c.Id)
 	go c.Connect()
 	go c.startRead()
 	go c.startWrite()

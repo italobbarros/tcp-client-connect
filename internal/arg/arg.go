@@ -21,8 +21,8 @@ type Config struct {
 func ParseFlags() (Config, error) {
 	addrPtr := flag.String("addr", "", "address to be connected - <ip>:<port>")
 	helpPtr := flag.Bool("help", false, "List all comands")
-	numPtr := flag.Int("num", 0, "Number of connections (not implemented)")
-	modePtr := flag.String("mode", "", "Function Mode - Client or Server (not implemented)")
+	numPtr := flag.Int("num", 1, "Number of connections")
+	//modePtr := flag.String("mode", "", "Function Mode - Client or Server (not implemented)")
 
 	// Parse os flags
 	flag.Parse()
@@ -30,7 +30,7 @@ func ParseFlags() (Config, error) {
 	config := Config{
 		Help: *helpPtr,
 		Num:  *numPtr,
-		Mode: *modePtr,
+		//Mode: *modePtr,
 	}
 	if config.Help {
 		fmt.Println("Usage: tcpclient [options]")
@@ -38,20 +38,23 @@ func ParseFlags() (Config, error) {
 		return config, fmt.Errorf("")
 	}
 
-	if err := checkAddr(addrPtr, &config); err != nil {
+	if err := checkAddr(addrPtr, &config, *numPtr); err != nil {
 		return config, err
 	}
 
 	return config, nil
 }
 
-func checkAddr(addr *string, cfg *Config) error {
+func checkAddr(addr *string, cfg *Config, number int) error {
 	addrList := strings.Split(*addr, ",")
 	if len(addrList) == 1 {
 		if err := isValidAddr(addrList[0]); err != nil {
 			return err
 		}
-		cfg.Addr = addrList
+		var i int
+		for i = 0; i < number; i++ {
+			cfg.Addr = append(cfg.Addr, addrList[0])
+		}
 		return nil
 	}
 	var ip string
@@ -61,7 +64,9 @@ func checkAddr(addr *string, cfg *Config) error {
 				return err
 			}
 			ip = strings.Split(addr, ":")[0]
-			cfg.Addr = append(cfg.Addr, addr)
+			for i = 0; i < number; i++ {
+				cfg.Addr = append(cfg.Addr, addr)
+			}
 			continue
 		}
 		addrParts := strings.Split(addr, ":")
@@ -70,15 +75,19 @@ func checkAddr(addr *string, cfg *Config) error {
 		}
 		if addrParts[0] == "" {
 			if err := isValidPort(addrParts[1]); err != nil {
-				return fmt.Errorf("Addr pos: %d - %s", i, err.Error())
+				return fmt.Errorf("addr pos: %d - %s", i, err.Error())
 			}
-			cfg.Addr = append(cfg.Addr, ip+addr)
+			for i = 0; i < number; i++ {
+				cfg.Addr = append(cfg.Addr, ip+addr)
+			}
 		} else {
 			if err := isValidAddr(addr); err != nil {
 				return err
 			}
 			ip = strings.Split(addr, ":")[0]
-			cfg.Addr = append(cfg.Addr, addr)
+			for i = 0; i < number; i++ {
+				cfg.Addr = append(cfg.Addr, addr)
+			}
 		}
 	}
 	return nil
