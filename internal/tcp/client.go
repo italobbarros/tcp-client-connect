@@ -64,12 +64,10 @@ func (c *Connection) Start() {
 	go c.startRead()
 	go c.startWrite()
 	go func() {
-		select {
-		case <-c.endCh:
-			close(c.InputData)
-			close(c.OutputData)
-			c.Stop()
-		}
+		<-c.endCh
+		close(c.InputData)
+		close(c.OutputData)
+		c.Stop()
 	}()
 }
 
