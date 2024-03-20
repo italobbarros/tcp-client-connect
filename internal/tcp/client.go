@@ -53,6 +53,8 @@ func (c *Connection) Connect() {
 			c.reconnectAttempts = 0
 			c.PrintStatus("Conectado", TextGreen)
 			c.manager.AddActiveConnections()
+			go c.startRead()
+			go c.startWrite()
 			return
 		}
 	}
@@ -61,8 +63,6 @@ func (c *Connection) Connect() {
 func (c *Connection) Start() {
 	//fmt.Println("Starting clientid ", c.Id)
 	go c.Connect()
-	go c.startRead()
-	go c.startWrite()
 	go func() {
 		<-c.endCh
 		defer c.Stop()
@@ -73,6 +73,7 @@ func (c *Connection) Stop() {
 	close(c.InputData)
 	close(c.OutputData)
 	close(c.ReconnectCh)
+
 }
 
 func (c *Connection) startRead() {
@@ -80,13 +81,6 @@ func (c *Connection) startRead() {
 		select {
 		case <-c.endCh:
 			return
-		case <-c.ReconnectCh:
-			c.ReconnectCh = make(chan struct{})
-			c.conn.Close()
-			c.PrintStatus("Desconectado!", TextRed)
-			c.manager.RemoveActiveConnections()
-			c.Connect()
-			continue
 		default:
 			if !c.IsConnected() {
 				continue
@@ -98,7 +92,12 @@ func (c *Connection) startRead() {
 			_, err := c.conn.Read(buffer)
 			if err != nil {
 				c.PrintStatus(err.Error(), TextRed)
-				continue
+				c.ReconnectCh = make(chan struct{})
+				c.conn.Close()
+				c.PrintStatus("Desconectado!", TextRed)
+				c.manager.RemoveActiveConnections()
+				go c.Connect()
+				return
 			}
 			// Send server command to the channel
 			if c.InputData != nil {
@@ -120,8 +119,6 @@ func (c *Connection) startWrite() {
 		select {
 		case <-c.endCh:
 			return
-		case <-c.ReconnectCh:
-			continue
 		default:
 			if c.reconnectAttempts != 0 {
 				continue
@@ -135,7 +132,7 @@ func (c *Connection) startWrite() {
 			}
 			_, err := c.conn.Write(data.Data)
 			if err != nil {
-				c.PrintStatus(err.Error(), TextRed)
+				return
 			}
 		}
 	}

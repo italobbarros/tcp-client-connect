@@ -4,17 +4,23 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
 )
 
 func main() {
-	listener, err := net.Listen("tcp", ":8081")
+	param := os.Args[1:]
+	if len(param) == 0 {
+		param = append(param, ":8081")
+	}
+	fmt.Println(param[0])
+	listener, err := net.Listen("tcp", param[0])
 	if err != nil {
 		log.Fatal("Erro ao iniciar o servidor:", err)
 	}
 
 	defer listener.Close()
 
-	fmt.Println("Servidor ouvindo em :8081")
+	fmt.Printf("Servidor ouvindo em %s", param[0])
 
 	for {
 		conn, err := listener.Accept()
