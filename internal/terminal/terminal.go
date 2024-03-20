@@ -71,7 +71,7 @@ func (t *Terminal) Create(endCh chan struct{}) {
 
 	// Cria um novo Form para a entrada do usuário
 	t.data = tview.NewForm().
-		AddInputField("Data", "", 150, nil, nil) //.
+		AddInputField("Data", "", 100, nil, nil) //.
 	t.data.SetBorder(true).SetTitle("Send Data").SetTitleAlign(tview.AlignLeft)
 
 	t.config = tview.NewForm().
@@ -205,25 +205,35 @@ func (t *Terminal) Create(endCh chan struct{}) {
 }
 
 func (t *Terminal) ListenServerResponse(endCh chan struct{}) {
+	var lote []tcp.DataType
 	for {
 		select {
 		case <-endCh:
 			return
-		case response := <-t.Input:
-			// Imprime a resposta recebida
-			if t.inputView != nil {
-				t.Print(response, t.inputView)
-				t.app.Draw()
-			}
-			if t.loopback {
-				if len(response.Data) == 0 {
-					continue
+		case data := <-t.Input:
+			lote = append(lote, data)
+			if len(lote) >= t.ManagerConnections.GetNumberConnections() {
+				// Processa o lote
+				if t.inputView != nil {
+					for _, response := range lote {
+						t.Print(response, t.inputView)
+					}
+					t.app.Draw()
 				}
-				t.ManagerConnections.SendDataToConnections(response)
-				go t.Print(response, t.outputView)
-				time.Sleep(time.Microsecond * 1)
+				// Limpa o lote para o próximo ciclo
+				lote = nil
+			}
+		case <-time.After(time.Second * 1):
+			if len(lote) > 0 {
+				// Processa qualquer dado restante no lote
+				for _, response := range lote {
+					t.Print(response, t.inputView)
+				}
+				t.app.Draw()
+				lote = nil
 			}
 		}
+
 	}
 }
 

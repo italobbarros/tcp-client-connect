@@ -65,13 +65,13 @@ func (c *Connection) Start() {
 	go c.startWrite()
 	go func() {
 		<-c.endCh
-		close(c.InputData)
-		close(c.OutputData)
-		c.Stop()
+		defer c.Stop()
 	}()
 }
 
 func (c *Connection) Stop() {
+	close(c.InputData)
+	close(c.OutputData)
 	close(c.ReconnectCh)
 }
 
@@ -98,7 +98,6 @@ func (c *Connection) startRead() {
 			_, err := c.conn.Read(buffer)
 			if err != nil {
 				c.PrintStatus(err.Error(), TextRed)
-				c.Stop()
 				continue
 			}
 			// Send server command to the channel
@@ -137,7 +136,6 @@ func (c *Connection) startWrite() {
 			_, err := c.conn.Write(data.Data)
 			if err != nil {
 				c.PrintStatus(err.Error(), TextRed)
-				c.Stop()
 			}
 		}
 	}
